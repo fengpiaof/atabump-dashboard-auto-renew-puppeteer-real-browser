@@ -2,10 +2,15 @@
  * 浏览器控制器
  */
 
-import puppeteer, { Browser, Page, LaunchOptions } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Browser, Page, LaunchOptions } from 'puppeteer';
 import { BrowserConfig } from '../types';
 import { logger } from '../utils/logger';
 import { RenewalError, ErrorType } from '../types';
+
+// 使用 stealth 插件隐藏自动化特征
+puppeteer.use(StealthPlugin());
 
 /**
  * 等待指定毫秒数
@@ -57,6 +62,32 @@ export class BrowserController {
           '--disable-dev-shm-usage',
           '--disable-web-security',
           '--disable-features=IsolateOrigins,site-per-process',
+          // 反检测参数
+          '--disable-blink-features=AutomationControlled', // 禁用自动化控制特征
+          '--disable-extensions-except=/dev/null',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-background-networking',
+          '--disable-breakpad',
+          '--disable-component-update',
+          '--disable-default-apps',
+          '--disable-domain-reliability',
+          '--disable-sync',
+          '--disable-features=site-per-process',
+          '--disable-hang-monitor',
+          '--disable-ipc-flooding-protection',
+          '--disable-popup-blocking',
+          '--disable-prompt-on-repost',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-gpu',
+          '--disable-accelerated-2d-canvas',
+          '--disable-accelerated-jpeg-decoding',
+          '--disable-accelerated-mjpeg-decode',
+          '--disable-software-rasterizer',
+          '--disable-infobars',
+          '--window-position=0,0',
           // 配置 DNS over HTTPS (DoH) - 使用正确的 fieldtrial 参数
           ...this.getDoHArgs(),
         ],
@@ -115,8 +146,14 @@ export class BrowserController {
       page.setDefaultTimeout(this.config.timeout ?? 30000);
       page.setDefaultNavigationTimeout(this.config.timeout ?? 30000);
 
+      // 应用反检测脚本
+      await this.applyAntiDetectionScripts(page);
+
+      // 设置时区和语言
+      await this.configureLocale(page);
+
       this.currentPage = page;
-      logger.info('BrowserController', '新页面创建成功');
+      logger.info('BrowserController', '新页面创建成功 (已应用反检测脚本)');
 
       return page;
     } catch (error) {
@@ -125,6 +162,175 @@ export class BrowserController {
         ErrorType.BROWSER_ERROR,
         `创建页面失败: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+  }
+
+  /**
+   * 应用反检测脚本
+   */
+  private async applyAntiDetectionScripts(page: Page): Promise<void> {
+    // 在每个新文档中注入脚本
+    await page.evaluateOnNewDocument(() => {
+      // 1. 覆盖 navigator.webdriver
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+      });
+
+      // 2. 覆盖 chrome 对象
+      (window as any).chrome = {
+        runtime: {},
+      };
+
+      // 3. 覆盖 permissions.query
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters: any) =>
+        parameters.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+          : originalQuery(parameters);
+
+      // 4. 覆盖 navigator.languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['zh-CN', 'zh', 'en-US', 'en'],
+      });
+
+      // 5. 覆盖 navigator.platform
+      Object.defineProperty(navigator, 'platform', {
+        get: () => 'Win32',
+      });
+
+      // 6. 覆盖 WebGL 指纹
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function (parameter) {
+        // UNMASKED_VENDOR_WEBGL
+        if (parameter === 37445) {
+          return 'Intel Inc.';
+        }
+        // UNMASKED_RENDERER_WEBGL
+        if (parameter === 37446) {
+          return 'Intel Iris OpenGL Engine';
+        }
+        return getParameter.call(this, parameter);
+      };
+
+      // 7. 添加 Canvas 指纹噪声
+      const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (type) {
+        // 添加微小的随机噪声
+        const context = this.getContext('2d');
+        if (context) {
+          const imageData = context.getImageData(0, 0, this.width, this.height);
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            // 随机修改一个像素的透明度
+            if (Math.random() < 0.001) {
+              imageData.data[i + 3] = imageData.data[i + 3] ^ 1;
+            }
+          }
+          context.putImageData(imageData, 0, 0);
+        }
+        return originalToDataURL.apply(this, [type]);
+      };
+
+      // 8. 覆盖 plugins 和 mimeTypes
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [
+          {
+            0: { type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+            description: 'Portable Document Format',
+            filename: 'internal-pdf-viewer',
+            length: 1,
+            name: 'Chrome PDF Plugin',
+          },
+          {
+            0: { type: 'application/pdf', suffixes: 'pdf', description: '' },
+            description: '',
+            filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
+            length: 1,
+            name: 'Chrome PDF Viewer',
+          },
+          {
+            0: { type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable' },
+            1: { type: 'application/x-pnacl', suffixes: '', description: 'Portable Native Client Executable' },
+            description: '',
+            filename: 'internal-nacl-plugin',
+            length: 2,
+            name: 'Native Client',
+          },
+        ],
+      });
+
+      // 9. 覆盖 Connection rtt 和 downlink
+      Object.defineProperty(navigator, 'connection', {
+        get: () => ({
+          effectiveType: '4g',
+          rtt: 100,
+          downlink: 10,
+          saveData: false,
+        }),
+      });
+
+      // 10. 覆盖 deviceMemory
+      Object.defineProperty(navigator, 'deviceMemory', {
+        get: () => 8,
+      });
+
+      // 11. 覆盖 hardwareConcurrency
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => 8,
+      });
+
+      // 12. 移除 automation 相关属性
+      delete (navigator as any).__proto__.webdriver;
+
+      // 13. 覆盖 Permission API
+      const originalPermissionQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters: any) => (
+        parameters.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+          : originalPermissionQuery(parameters)
+      );
+
+      // 14. 覆盖 Screen API
+      Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+      Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+      Object.defineProperty(screen, 'width', { get: () => 1920 });
+      Object.defineProperty(screen, 'height', { get: () => 1080 });
+
+      // 15. 覆盖 Date.getTimezoneOffset
+      Date.prototype.getTimezoneOffset = function () {
+        return -480; // UTC+8 (Asia/Shanghai)
+      };
+
+      // 16. 覆盖 Intl.DateTimeFormat
+      const originalDateTimeFormat = Intl.DateTimeFormat;
+      (Intl as any).DateTimeFormat = function (...args: any[]) {
+        const instance = new (originalDateTimeFormat as any)(...args);
+        const originalResolvedOptions = instance.resolvedOptions;
+        instance.resolvedOptions = function () {
+          const options = originalResolvedOptions.call(this);
+          options.timeZone = 'Asia/Shanghai';
+          return options;
+        };
+        return instance;
+      };
+    });
+  }
+
+  /**
+   * 配置时区和语言
+   */
+  private async configureLocale(page: Page): Promise<void> {
+    try {
+      // 设置时区为中国时区
+      await page.emulateTimezone('Asia/Shanghai');
+
+      // 设置 Accept-Language 头
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+      });
+
+      logger.debug('BrowserController', '已配置时区和语言设置');
+    } catch (error) {
+      logger.warn('BrowserController', '配置时区失败', error);
     }
   }
 

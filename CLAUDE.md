@@ -38,6 +38,7 @@ pnpm start:config      # Run with config.json
 
 # Run test scripts
 npx ts-node scripts/test-full-renewal.ts
+npx ts-node scripts/test-fingerprint-detection.ts  # Test browser fingerprint anti-detection
 ```
 
 ### Cleanup
@@ -56,7 +57,8 @@ pnpm run clean         # Remove dist/ directory
 - Entry point for programmatic API usage
 
 **BrowserController** (`src/browser/controller.ts`)
-- Manages Puppeteer browser instance lifecycle
+- Manages Puppeteer browser instance lifecycle using `puppeteer-extra` with stealth plugin
+- Implements comprehensive browser fingerprint anti-detection measures
 - Configures DNS over HTTPS (DoH) using Chrome fieldtrial parameters
 - Handles page navigation and Cloudflare verification detection
 - Supports persistent user data directory for caching (`userDataDir`)
@@ -159,6 +161,105 @@ The system defines specific error types in `src/types/index.ts`:
 - `BUSINESS_ERROR`: Server not found, renewal failed
 
 All errors extend `RenewalError` class with type, message, and optional code.
+
+### Browser Fingerprint Anti-Detection
+
+The system implements comprehensive anti-detection measures to avoid bot detection:
+
+#### 1. Puppeteer-Extra with Stealth Plugin
+- Uses `puppeteer-extra` instead of standard `puppeteer`
+- Applies `puppeteer-extra-plugin-stealth` to hide common automation indicators
+- Community-maintained plugin that addresses numerous bot detection vectors
+
+#### 2. Browser Launch Arguments
+Multiple anti-detection flags are set:
+```typescript
+'--disable-blink-features=AutomationControlled'  // Most important
+'--disable-extensions-except=/dev/null'
+'--disable-infobars'
+'--disable-gpu'
+'--disable-accelerated-2d-canvas'
+// ... and 20+ more flags
+```
+
+#### 3. JavaScript Context Overrides
+The following properties are overridden in each page:
+
+- **`navigator.webdriver`**: Set to `false` (most important)
+- **`window.chrome`**: Faked to exist with `runtime: {}`
+- **`navigator.plugins`**: Returns realistic plugin list (Chrome PDF Plugin, etc.)
+- **`navigator.languages`**: Returns `['zh-CN', 'zh', 'en-US', 'en']`
+- **`navigator.platform`**: Returns `'Win32'`
+- **`navigator.hardwareConcurrency`**: Returns `8`
+- **`navigator.deviceMemory`**: Returns `8`
+- **`navigator.connection`**: Returns realistic 4G connection info
+
+#### 4. WebGL Fingerprint Masking
+```javascript
+WebGLRenderingContext.prototype.getParameter = function(parameter) {
+  if (parameter === 37445) return 'Intel Inc.';
+  if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+  return getParameter.call(this, parameter);
+};
+```
+
+#### 5. Canvas Fingerprint Noise
+Adds tiny random noise to canvas rendering to make each fingerprint unique:
+```javascript
+// Randomly modifies 0.1% of pixels' alpha channel
+if (Math.random() < 0.001) {
+  imageData.data[i + 3] = imageData.data[i + 3] ^ 1;
+}
+```
+
+#### 6. Timezone and Locale Configuration
+- **Timezone**: Set to `'Asia/Shanghai'` (UTC+8)
+- **Accept-Language**: `'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'`
+- **Date.getTimezoneOffset()**: Returns `-480` (UTC+8)
+- **Intl.DateTimeFormat().timeZone**: Returns `'Asia/Shanghai'`
+
+#### 7. Screen Properties
+```javascript
+screen.width = 1920
+screen.height = 1080
+screen.availWidth = 1920
+screen.availHeight = 1040
+```
+
+#### Testing Anti-Detection
+
+Run the fingerprint detection test script:
+```bash
+npx ts-node scripts/test-fingerprint-detection.ts
+```
+
+This will:
+1. Launch browser with anti-detection measures
+2. Visit multiple bot detection websites (sannysoft.com, antoinevastel.com, etc.)
+3. Take screenshots of results
+4. Display current fingerprint data in a table
+5. Save fingerprint data to JSON
+
+Expected results on good detection sites:
+- **Sannysoft**: Mostly green (passed), some yellow may appear
+- **AHS Headless**: Should show "Non-headless browser detected"
+- **navigator.webdriver**: Should be `false`
+- **WebGL Vendor**: Should show "Intel Inc." or similar
+
+#### Limitations
+
+The current implementation does NOT address:
+1. **TLS/JA3 Fingerprint**: Puppeteer's TLS handshake differs from real Chrome
+   - Solution: Use curl-impersonate or commercial proxy services
+2. **HTTP/2 Fingerprint**: May differ from real browser
+3. **Behavioral Analysis**: Mouse movement patterns, typing speed
+   - Mitigation: The system already adds random mouse movements before CAPTCHA clicks
+
+For production use against sophisticated detection, consider:
+- Using residential proxies
+- Implementing request delay randomization
+- Adding more realistic user behavior simulation
+- Using curl-impersonate for network-level fingerprint matching
 
 ### Testing
 

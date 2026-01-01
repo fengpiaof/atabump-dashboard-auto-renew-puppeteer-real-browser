@@ -4,9 +4,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BrowserController = void 0;
-const puppeteer_1 = __importDefault(require("puppeteer"));
+const puppeteer_extra_1 = __importDefault(require("puppeteer-extra"));
+const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
+puppeteer_extra_1.default.use((0, puppeteer_extra_plugin_stealth_1.default)());
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class BrowserController {
     constructor(config) {
@@ -40,6 +42,31 @@ class BrowserController {
                     '--disable-dev-shm-usage',
                     '--disable-web-security',
                     '--disable-features=IsolateOrigins,site-per-process',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-extensions-except=/dev/null',
+                    '--disable-extensions',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-background-networking',
+                    '--disable-breakpad',
+                    '--disable-component-update',
+                    '--disable-default-apps',
+                    '--disable-domain-reliability',
+                    '--disable-sync',
+                    '--disable-features=site-per-process',
+                    '--disable-hang-monitor',
+                    '--disable-ipc-flooding-protection',
+                    '--disable-popup-blocking',
+                    '--disable-prompt-on-repost',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-gpu',
+                    '--disable-accelerated-2d-canvas',
+                    '--disable-accelerated-jpeg-decoding',
+                    '--disable-accelerated-mjpeg-decode',
+                    '--disable-software-rasterizer',
+                    '--disable-infobars',
+                    '--window-position=0,0',
                     ...this.getDoHArgs(),
                 ],
             };
@@ -50,7 +77,7 @@ class BrowserController {
                 launchOptions.userDataDir = this.config.userDataDir;
                 logger_1.logger.info('BrowserController', `使用用户数据目录: ${this.config.userDataDir}`);
             }
-            this.browser = await puppeteer_1.default.launch(launchOptions);
+            this.browser = await puppeteer_extra_1.default.launch(launchOptions);
             const dohUrl = this.config.dohUrl || this.DEFAULT_DOH_URL;
             logger_1.logger.info('BrowserController', `浏览器启动成功 (DoH: ${dohUrl})`);
         }
@@ -74,13 +101,134 @@ class BrowserController {
             }
             page.setDefaultTimeout(this.config.timeout ?? 30000);
             page.setDefaultNavigationTimeout(this.config.timeout ?? 30000);
+            await this.applyAntiDetectionScripts(page);
+            await this.configureLocale(page);
             this.currentPage = page;
-            logger_1.logger.info('BrowserController', '新页面创建成功');
+            logger_1.logger.info('BrowserController', '新页面创建成功 (已应用反检测脚本)');
             return page;
         }
         catch (error) {
             logger_1.logger.error('BrowserController', '创建页面失败', error);
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, `创建页面失败: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async applyAntiDetectionScripts(page) {
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false,
+            });
+            window.chrome = {
+                runtime: {},
+            };
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => parameters.name === 'notifications'
+                ? Promise.resolve({ state: Notification.permission })
+                : originalQuery(parameters);
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['zh-CN', 'zh', 'en-US', 'en'],
+            });
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'Win32',
+            });
+            const getParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function (parameter) {
+                if (parameter === 37445) {
+                    return 'Intel Inc.';
+                }
+                if (parameter === 37446) {
+                    return 'Intel Iris OpenGL Engine';
+                }
+                return getParameter.call(this, parameter);
+            };
+            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function (type) {
+                const context = this.getContext('2d');
+                if (context) {
+                    const imageData = context.getImageData(0, 0, this.width, this.height);
+                    for (let i = 0; i < imageData.data.length; i += 4) {
+                        if (Math.random() < 0.001) {
+                            imageData.data[i + 3] = imageData.data[i + 3] ^ 1;
+                        }
+                    }
+                    context.putImageData(imageData, 0, 0);
+                }
+                return originalToDataURL.apply(this, [type]);
+            };
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    {
+                        0: { type: 'application/x-google-chrome-pdf', suffixes: 'pdf', description: 'Portable Document Format' },
+                        description: 'Portable Document Format',
+                        filename: 'internal-pdf-viewer',
+                        length: 1,
+                        name: 'Chrome PDF Plugin',
+                    },
+                    {
+                        0: { type: 'application/pdf', suffixes: 'pdf', description: '' },
+                        description: '',
+                        filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',
+                        length: 1,
+                        name: 'Chrome PDF Viewer',
+                    },
+                    {
+                        0: { type: 'application/x-nacl', suffixes: '', description: 'Native Client Executable' },
+                        1: { type: 'application/x-pnacl', suffixes: '', description: 'Portable Native Client Executable' },
+                        description: '',
+                        filename: 'internal-nacl-plugin',
+                        length: 2,
+                        name: 'Native Client',
+                    },
+                ],
+            });
+            Object.defineProperty(navigator, 'connection', {
+                get: () => ({
+                    effectiveType: '4g',
+                    rtt: 100,
+                    downlink: 10,
+                    saveData: false,
+                }),
+            });
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8,
+            });
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 8,
+            });
+            delete navigator.__proto__.webdriver;
+            const originalPermissionQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (parameters.name === 'notifications'
+                ? Promise.resolve({ state: Notification.permission })
+                : originalPermissionQuery(parameters));
+            Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+            Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+            Object.defineProperty(screen, 'width', { get: () => 1920 });
+            Object.defineProperty(screen, 'height', { get: () => 1080 });
+            Date.prototype.getTimezoneOffset = function () {
+                return -480;
+            };
+            const originalDateTimeFormat = Intl.DateTimeFormat;
+            Intl.DateTimeFormat = function (...args) {
+                const instance = new originalDateTimeFormat(...args);
+                const originalResolvedOptions = instance.resolvedOptions;
+                instance.resolvedOptions = function () {
+                    const options = originalResolvedOptions.call(this);
+                    options.timeZone = 'Asia/Shanghai';
+                    return options;
+                };
+                return instance;
+            };
+        });
+    }
+    async configureLocale(page) {
+        try {
+            await page.emulateTimezone('Asia/Shanghai');
+            await page.setExtraHTTPHeaders({
+                'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+            });
+            logger_1.logger.debug('BrowserController', '已配置时区和语言设置');
+        }
+        catch (error) {
+            logger_1.logger.warn('BrowserController', '配置时区失败', error);
         }
     }
     getCurrentPage() {

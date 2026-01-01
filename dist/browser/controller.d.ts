@@ -9,6 +9,8 @@ export declare class BrowserController {
     private getDoHArgs;
     launch(): Promise<void>;
     newPage(): Promise<Page>;
+    private applyAntiDetectionScripts;
+    private configureLocale;
     getCurrentPage(): Page;
     navigate(url: string): Promise<void>;
     waitForCloudflareVerification(): Promise<void>;
