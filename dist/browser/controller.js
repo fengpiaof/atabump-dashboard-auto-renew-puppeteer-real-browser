@@ -40,12 +40,14 @@ class BrowserController {
     async launch() {
         try {
             logger_1.logger.info('BrowserController', '正在启动浏览器...');
-            const launchOptions = { defaultViewport: {
+            const launchOptions = {
+                defaultViewport: {
                     width: 1920,
                     height: 1080,
                 },
                 headless: this.config.headless ?? true,
-                args: ['--window-size=1920,1080',
+                args: [
+                    '--window-size=1920,1080',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
@@ -58,6 +60,11 @@ class BrowserController {
             // 如果提供了可执行路径,使用指定的 Chrome
             if (this.config.executablePath) {
                 launchOptions.executablePath = this.config.executablePath;
+            }
+            // 如果提供了用户数据目录,使用它来启用缓存和持久化
+            if (this.config.userDataDir) {
+                launchOptions.userDataDir = this.config.userDataDir;
+                logger_1.logger.info('BrowserController', `使用用户数据目录: ${this.config.userDataDir}`);
             }
             this.browser = await puppeteer_1.default.launch(launchOptions);
             const dohUrl = this.config.dohUrl || this.DEFAULT_DOH_URL;

@@ -16,7 +16,9 @@
     "timeout": 30000,
     "waitUntil": "networkidle0",
     "windowWidth": 1920,
-    "windowHeight": 1080
+    "windowHeight": 1080,
+    "userDataDir": "C:\\Users\\Administrator\\Documents\\katabump-dashboard-auto-renew\\.chrome-data",
+    "dohUrl": "https://doh.pub/dns-query"
   },
   "retry": {
     "maxRetries": 3,

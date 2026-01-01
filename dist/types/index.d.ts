@@ -27,6 +27,8 @@ export interface BrowserConfig {
     executablePath?: string;
     /** DNS over HTTPS (DoH) 服务器 URL */
     dohUrl?: string;
+    /** Chrome 用户数据目录路径,用于缓存和持久化数据 */
+    userDataDir?: string;
 }
 /**
  * 重试策略
