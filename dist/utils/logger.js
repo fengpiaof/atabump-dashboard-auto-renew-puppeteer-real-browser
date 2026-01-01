@@ -1,7 +1,4 @@
 "use strict";
-/**
- * 日志工具类
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.logger = exports.Logger = exports.LogLevel = void 0;
 var LogLevel;
@@ -52,9 +49,7 @@ class Logger {
         }
     }
     log(entry) {
-        // 将日志级别字符串转换为枚举值
         const entryLogLevel = this.stringToLogLevel(entry.level);
-        // 只有当日志级别符合要求时才记录
         if (!this.shouldLog(entryLogLevel)) {
             return;
         }

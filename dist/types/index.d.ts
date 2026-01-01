@@ -1,21 +1,12 @@
-/**
- * 登录凭证
- */
 export interface LoginCredentials {
     username: string;
     password: string;
 }
-/**
- * 服务器配置
- */
 export interface ServerConfig {
     id: string;
     name?: string;
     customOptions?: Record<string, unknown>;
 }
-/**
- * 浏览器配置
- */
 export interface BrowserConfig {
     headless?: boolean;
     proxyUrl?: string;
@@ -25,14 +16,9 @@ export interface BrowserConfig {
     timeout?: number;
     waitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
     executablePath?: string;
-    /** DNS over HTTPS (DoH) 服务器 URL */
     dohUrl?: string;
-    /** Chrome 用户数据目录路径,用于缓存和持久化数据 */
     userDataDir?: string;
 }
-/**
- * 重试策略
- */
 export interface RetryPolicy {
     maxRetries: number;
     retryInterval: number;
@@ -41,9 +27,6 @@ export interface RetryPolicy {
     maxRetryInterval?: number;
     retryableErrors?: string[];
 }
-/**
- * 通知配置
- */
 export interface NotificationConfig {
     enableEmail: boolean;
     emailConfig?: {
@@ -56,9 +39,6 @@ export interface NotificationConfig {
     webhookUrl?: string;
     enableStdout?: boolean;
 }
-/**
- * 续期配置
- */
 export interface RenewalConfig {
     credentials: LoginCredentials;
     servers: ServerConfig[];
@@ -67,9 +47,6 @@ export interface RenewalConfig {
     retry: RetryPolicy;
     notifications: NotificationConfig;
 }
-/**
- * 续期结果
- */
 export interface RenewalResult {
     success: boolean;
     serverId: string;
@@ -85,9 +62,6 @@ export interface RenewalResult {
         stack?: string;
     };
 }
-/**
- * 批量续期结果
- */
 export interface BatchRenewalResult {
     totalCount: number;
     successCount: number;
@@ -95,9 +69,6 @@ export interface BatchRenewalResult {
     results: RenewalResult[];
     executionTime: number;
 }
-/**
- * 错误类型
- */
 export declare enum ErrorType {
     CONFIG_ERROR = "CONFIG_ERROR",
     NETWORK_ERROR = "NETWORK_ERROR",
@@ -106,9 +77,6 @@ export declare enum ErrorType {
     VERIFY_ERROR = "VERIFY_ERROR",
     BUSINESS_ERROR = "BUSINESS_ERROR"
 }
-/**
- * 自定义错误类
- */
 export declare class RenewalError extends Error {
     type: ErrorType;
     code?: string | undefined;

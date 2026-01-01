@@ -23,7 +23,13 @@ export class LoginProcessor {
       logger.info('LoginProcessor', '开始登录流程...');
 
       // 等待页面加载
-      await this.waitForPageLoad();
+      const pageLoaded = await this.waitForPageLoad();
+
+      // 如果页面已经登录成功,直接返回
+      if (pageLoaded === 'already_logged_in') {
+        logger.info('LoginProcessor', '检测到已登录状态,跳过登录流程');
+        return true;
+      }
 
       // 检测并填写登录表单
       await this.fillLoginForm(credentials);
@@ -55,15 +61,41 @@ export class LoginProcessor {
 
   /**
    * 等待页面加载完成
+   * @returns 'needs_login' | 'already_logged_in'
    */
-  private async waitForPageLoad(): Promise<void> {
+  private async waitForPageLoad(): Promise<'needs_login' | 'already_logged_in'> {
     logger.info('LoginProcessor', '等待页面加载完成...');
+
+    // 首先检查是否已经在登录后的页面
+    await delay(2000); // 等待页面稳定
+
+    const alreadyLoggedIn = await this.page.evaluate(() => {
+      // 检查是否有dashboard页面的特征元素
+      const url = window.location.href;
+      const hasDashboardContent = document.body.textContent?.includes('Dashboard') ||
+                                   document.body.textContent?.includes('Servers') ||
+                                   document.body.textContent?.includes('服务器') ||
+                                   document.querySelector('.dashboard') !== null;
+
+      // 如果URL包含dashboard或servers,或者页面包含dashboard相关内容,可能已经登录
+      if (url.includes('/dashboard') || url.includes('/servers') || hasDashboardContent) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (alreadyLoggedIn) {
+      logger.info('LoginProcessor', '检测到已登录状态');
+      return 'already_logged_in';
+    }
 
     // 等待常见的登录表单元素出现
     try {
       await this.page.waitForSelector('input[type="email"], input[name="email"], input[type="text"]', {
         timeout: 10000,
       });
+      return 'needs_login';
     } catch (error) {
       throw new RenewalError(
         ErrorType.PARSE_ERROR,

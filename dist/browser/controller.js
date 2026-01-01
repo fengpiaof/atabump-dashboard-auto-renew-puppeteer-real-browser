@@ -1,7 +1,4 @@
 "use strict";
-/**
- * 浏览器控制器
- */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -10,9 +7,6 @@ exports.BrowserController = void 0;
 const puppeteer_1 = __importDefault(require("puppeteer"));
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
-/**
- * 等待指定毫秒数
- */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class BrowserController {
     constructor(config) {
@@ -21,10 +15,6 @@ class BrowserController {
         this.DEFAULT_DOH_URL = 'https://doh.pub/dns-query';
         this.config = config;
     }
-    /**
-     * 生成 DoH (DNS over HTTPS) 参数
-     * 使用 Chrome fieldtrial 方式配置
-     */
     getDoHArgs() {
         const dohUrl = this.config.dohUrl || this.DEFAULT_DOH_URL;
         const encodedUrl = encodeURIComponent(dohUrl);
@@ -34,9 +24,6 @@ class BrowserController {
             `--force-fieldtrial-params=DoHTrial.Group1:Templates/${encodedUrl}/Fallback/true`
         ];
     }
-    /**
-     * 启动浏览器
-     */
     async launch() {
         try {
             logger_1.logger.info('BrowserController', '正在启动浏览器...');
@@ -53,15 +40,12 @@ class BrowserController {
                     '--disable-dev-shm-usage',
                     '--disable-web-security',
                     '--disable-features=IsolateOrigins,site-per-process',
-                    // 配置 DNS over HTTPS (DoH) - 使用正确的 fieldtrial 参数
                     ...this.getDoHArgs(),
                 ],
             };
-            // 如果提供了可执行路径,使用指定的 Chrome
             if (this.config.executablePath) {
                 launchOptions.executablePath = this.config.executablePath;
             }
-            // 如果提供了用户数据目录,使用它来启用缓存和持久化
             if (this.config.userDataDir) {
                 launchOptions.userDataDir = this.config.userDataDir;
                 logger_1.logger.info('BrowserController', `使用用户数据目录: ${this.config.userDataDir}`);
@@ -75,25 +59,19 @@ class BrowserController {
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, `浏览器启动失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 创建新页面
-     */
     async newPage() {
         if (!this.browser) {
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, '浏览器未启动,请先调用 launch() 方法');
         }
         try {
             const page = await this.browser.newPage();
-            // 设置视口大小
             await page.setViewport({
                 width: this.config.windowWidth ?? 1920,
                 height: this.config.windowHeight ?? 1080,
             });
-            // 设置 User-Agent
             if (this.config.userAgent) {
                 await page.setUserAgent(this.config.userAgent);
             }
-            // 设置超时
             page.setDefaultTimeout(this.config.timeout ?? 30000);
             page.setDefaultNavigationTimeout(this.config.timeout ?? 30000);
             this.currentPage = page;
@@ -105,18 +83,12 @@ class BrowserController {
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, `创建页面失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 获取当前页面
-     */
     getCurrentPage() {
         if (!this.currentPage) {
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, '当前没有活动页面,请先调用 newPage() 方法');
         }
         return this.currentPage;
     }
-    /**
-     * 导航到指定 URL
-     */
     async navigate(url) {
         const page = this.getCurrentPage();
         try {
@@ -132,14 +104,10 @@ class BrowserController {
             throw new types_1.RenewalError(types_1.ErrorType.NETWORK_ERROR, `页面导航失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 等待 Cloudflare 验证完成
-     */
     async waitForCloudflareVerification() {
         const page = this.getCurrentPage();
         try {
             logger_1.logger.info('BrowserController', '等待 Cloudflare 验证完成...');
-            // 检测是否有 Cloudflare 验证
             const hasCloudflare = await page.evaluate(() => {
                 return (document.querySelector('#turnstile-container') !== null ||
                     document.querySelector('[data-sitekey]') !== null ||
@@ -149,7 +117,6 @@ class BrowserController {
                 logger_1.logger.info('BrowserController', '未检测到 Cloudflare 验证');
                 return;
             }
-            // 等待验证完成 (最多等待 5 分钟)
             await page.waitForFunction(() => {
                 return (document.querySelector('#turnstile-container') === null &&
                     !document.querySelector('[data-sitekey]') &&
@@ -162,9 +129,6 @@ class BrowserController {
             throw new types_1.RenewalError(types_1.ErrorType.VERIFY_ERROR, `Cloudflare 验证超时: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 截图
-     */
     async screenshot(filePath) {
         const page = this.getCurrentPage();
         try {
@@ -182,16 +146,10 @@ class BrowserController {
             throw new types_1.RenewalError(types_1.ErrorType.BROWSER_ERROR, `截图失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 获取页面 HTML
-     */
     async getHtml() {
         const page = this.getCurrentPage();
         return await page.content();
     }
-    /**
-     * 关闭浏览器
-     */
     async close() {
         try {
             if (this.browser) {

@@ -36,15 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConfigLoader = void 0;
 const fs = __importStar(require("fs"));
 const types_1 = require("../types");
-/**
- * 配置加载器类
- */
 class ConfigLoader {
-    /**
-     * 从文件加载配置
-     * @param configPath - 配置文件路径
-     * @returns 配置对象
-     */
     static loadFromFile(configPath) {
         if (!fs.existsSync(configPath)) {
             throw new types_1.RenewalError(types_1.ErrorType.CONFIG_ERROR, `配置文件不存在: ${configPath}`);
@@ -59,21 +51,10 @@ class ConfigLoader {
         }
         return this.validateAndNormalize(config);
     }
-    /**
-     * 从对象创建配置
-     * @param configObj - 配置对象
-     * @returns 配置对象
-     */
     static loadFromObject(configObj) {
         return this.validateAndNormalize(configObj);
     }
-    /**
-     * 验证并规范化配置
-     * @param config - 原始配置
-     * @returns 验证后的配置
-     */
     static validateAndNormalize(config) {
-        // 验证必填字段
         if (!config.credentials?.username || !config.credentials?.password) {
             throw new types_1.RenewalError(types_1.ErrorType.CONFIG_ERROR, '缺少登录凭证 (credentials.username 和 credentials.password 为必填项)');
         }
@@ -83,13 +64,11 @@ class ConfigLoader {
         if (!config.servers || config.servers.length === 0) {
             throw new types_1.RenewalError(types_1.ErrorType.CONFIG_ERROR, '缺少服务器配置 (servers 为必填项且不能为空)');
         }
-        // 验证服务器ID
         for (const server of config.servers) {
             if (!server.id) {
                 throw new types_1.RenewalError(types_1.ErrorType.CONFIG_ERROR, '服务器配置中缺少 id 字段');
             }
         }
-        // 设置默认值
         const normalizedConfig = {
             ...config,
             browser: {
@@ -118,10 +97,6 @@ class ConfigLoader {
         };
         return normalizedConfig;
     }
-    /**
-     * 获取默认配置模板
-     * @returns 默认配置模板
-     */
     static getDefaultTemplate() {
         return {
             targetUrl: 'https://dashboard.example.com/dashboard',

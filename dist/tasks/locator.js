@@ -1,29 +1,18 @@
 "use strict";
-/**
- * 服务器定位器
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServerLocator = void 0;
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
-/**
- * 等待指定毫秒数
- */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class ServerLocator {
     constructor(page) {
         this.page = page;
         this.baseUrl = 'https://dashboard.katabump.com';
     }
-    /**
-     * 定位目标服务器
-     */
     async locateServer(serverId, serverName) {
         try {
             logger_1.logger.info('ServerLocator', `开始定位服务器: ID=${serverId}, Name=${serverName}`);
-            // 等待服务器列表加载
             await this.waitForServerList();
-            // 尝试多种定位策略
             let serverInfo = await this.locateById(serverId);
             if (!serverInfo && serverName) {
                 logger_1.logger.info('ServerLocator', '未通过 ID 找到服务器,尝试通过名称查找');
@@ -47,13 +36,9 @@ class ServerLocator {
             throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, `定位服务器失败: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 等待服务器列表加载
-     */
     async waitForServerList() {
         logger_1.logger.info('ServerLocator', '等待服务器列表加载...');
         try {
-            // 等待常见的列表元素出现
             await this.page.waitForSelector('table, .server-list, .server-card, [data-testid="server-list"]', {
                 timeout: 10000,
             });
@@ -63,12 +48,8 @@ class ServerLocator {
             throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, '未找到服务器列表,可能未在正确的页面');
         }
     }
-    /**
-     * 通过 ID 定位服务器
-     */
     async locateById(serverId) {
         try {
-            // 尝试在表格中查找
             const tableRow = await this.page.evaluateHandle((id) => {
                 const rows = document.querySelectorAll('table tbody tr');
                 for (const row of rows) {
@@ -88,7 +69,6 @@ class ServerLocator {
                 const result = await tableRow.jsonValue();
                 return result;
             }
-            // 尝试在卡片列表中查找
             const card = await this.page.evaluateHandle((id) => {
                 const cards = document.querySelectorAll('.server-card, [data-server-id]');
                 for (const card of cards) {
@@ -116,18 +96,13 @@ class ServerLocator {
             return null;
         }
     }
-    /**
-     * 通过名称定位服务器
-     */
     async locateByName(serverName) {
         try {
             const result = await this.page.evaluateHandle((name) => {
-                // 搜索所有可能包含服务器名称的元素
                 const elements = document.querySelectorAll('td, .server-name, h3, h4, [data-server-name]');
                 for (const element of elements) {
                     const text = element.textContent || '';
                     if (text.includes(name)) {
-                        // 尝试找到对应的 ID
                         const parent = element.closest('tr, .server-card, [data-server-id]');
                         if (parent) {
                             const serverId = parent.getAttribute('data-server-id') || text.split(' ')[0];
@@ -152,15 +127,10 @@ class ServerLocator {
             return null;
         }
     }
-    /**
-     * 模糊匹配定位服务器
-     */
     async locateByFuzzyMatch(serverId, serverName) {
         try {
             const result = await this.page.evaluateHandle(({ id, name }) => {
-                // 获取所有文本内容
                 const allText = document.body.textContent || '';
-                // 检查是否包含 ID 或名称的部分
                 const idParts = id.split('-');
                 const nameParts = name.split('-');
                 for (const idPart of idParts) {
@@ -190,19 +160,13 @@ class ServerLocator {
             return null;
         }
     }
-    /**
-     * 点击进入服务器详情页面
-     */
     async navigateToServerDetail(serverInfo) {
         try {
             logger_1.logger.info('ServerLocator', `正在进入服务器详情: ${serverInfo.name}`);
-            // 优先使用直接 URL 访问(KataBump 的服务器详情页 URL 格式)
             const detailUrl = `${this.baseUrl}/servers/edit?id=${serverInfo.id}`;
             logger_1.logger.info('ServerLocator', `使用直接 URL 访问: ${detailUrl}`);
             await this.page.goto(detailUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-            // 等待页面加载完成
             await delay(2000);
-            // 验证是否成功进入服务器详情页
             const isDetailPage = await this.page.evaluate(() => {
                 const title = document.title;
                 const url = window.location.href;
@@ -215,7 +179,6 @@ class ServerLocator {
         }
         catch (error) {
             logger_1.logger.error('ServerLocator', '进入服务器详情失败', error);
-            // 如果直接 URL 访问失败,尝试传统的点击方式
             if (error instanceof types_1.RenewalError) {
                 throw error;
             }
@@ -223,19 +186,13 @@ class ServerLocator {
             await this.navigateToServerDetailByClick(serverInfo);
         }
     }
-    /**
-     * 通过点击方式进入服务器详情页面(备用方法)
-     */
     async navigateToServerDetailByClick(serverInfo) {
         try {
-            // 如果有元素引用,直接点击
             if (serverInfo.element) {
                 await serverInfo.element.click();
             }
             else {
-                // 否则,通过查找并点击链接或按钮
                 const link = await this.page.evaluateHandle((info) => {
-                    // 查找包含服务器 ID 的链接
                     const links = document.querySelectorAll('a, button');
                     for (const link of links) {
                         const text = link.textContent || '';
@@ -246,12 +203,10 @@ class ServerLocator {
                     return null;
                 }, serverInfo);
                 if (link) {
-                    // 类型检查并点击
                     if (link instanceof this.page.constructor) {
                         await link.click();
                     }
                     else {
-                        // 在页面上下文中点击
                         await this.page.evaluate((el) => {
                             if (el instanceof HTMLElement) {
                                 el.click();
@@ -263,7 +218,6 @@ class ServerLocator {
                     throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, '未找到进入服务器详情的链接或按钮');
                 }
             }
-            // 等待页面导航
             await delay(2000);
             logger_1.logger.info('ServerLocator', '已通过点击进入服务器详情页面');
         }

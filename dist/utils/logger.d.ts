@@ -1,6 +1,3 @@
-/**
- * 日志工具类
- */
 export declare enum LogLevel {
     DEBUG = 0,
     INFO = 1,

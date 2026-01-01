@@ -1,17 +1,6 @@
 "use strict";
-/**
- * 配置模式定义
- * 提供配置结构的类型检查和验证
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateConfig = validateConfig;
-// 配置模式已经在 types/index.ts 中定义
-// 此文件保留用于未来扩展验证规则
-/**
- * 配置验证函数
- * @param config - 待验证的配置
- * @returns 验证结果
- */
 function validateConfig(config) {
     const errors = [];
     if (!config.credentials) {

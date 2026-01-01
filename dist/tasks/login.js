@@ -1,32 +1,23 @@
 "use strict";
-/**
- * 登录处理器
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoginProcessor = void 0;
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
-/**
- * 等待指定毫秒数
- */
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class LoginProcessor {
     constructor(page) {
         this.page = page;
     }
-    /**
-     * 执行登录操作
-     */
     async login(credentials) {
         try {
             logger_1.logger.info('LoginProcessor', '开始登录流程...');
-            // 等待页面加载
-            await this.waitForPageLoad();
-            // 检测并填写登录表单
+            const pageLoaded = await this.waitForPageLoad();
+            if (pageLoaded === 'already_logged_in') {
+                logger_1.logger.info('LoginProcessor', '检测到已登录状态,跳过登录流程');
+                return true;
+            }
             await this.fillLoginForm(credentials);
-            // 提交登录
             await this.submitLogin();
-            // 等待登录结果
             const success = await this.waitForLoginResult();
             if (success) {
                 logger_1.logger.info('LoginProcessor', '登录成功');
@@ -45,27 +36,36 @@ class LoginProcessor {
             throw new types_1.RenewalError(types_1.ErrorType.VERIFY_ERROR, `登录过程出错: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
-    /**
-     * 等待页面加载完成
-     */
     async waitForPageLoad() {
         logger_1.logger.info('LoginProcessor', '等待页面加载完成...');
-        // 等待常见的登录表单元素出现
+        await delay(2000);
+        const alreadyLoggedIn = await this.page.evaluate(() => {
+            const url = window.location.href;
+            const hasDashboardContent = document.body.textContent?.includes('Dashboard') ||
+                document.body.textContent?.includes('Servers') ||
+                document.body.textContent?.includes('服务器') ||
+                document.querySelector('.dashboard') !== null;
+            if (url.includes('/dashboard') || url.includes('/servers') || hasDashboardContent) {
+                return true;
+            }
+            return false;
+        });
+        if (alreadyLoggedIn) {
+            logger_1.logger.info('LoginProcessor', '检测到已登录状态');
+            return 'already_logged_in';
+        }
         try {
             await this.page.waitForSelector('input[type="email"], input[name="email"], input[type="text"]', {
                 timeout: 10000,
             });
+            return 'needs_login';
         }
         catch (error) {
             throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, '未找到登录表单,可能页面结构已变化或不是登录页面');
         }
     }
-    /**
-     * 填写登录表单
-     */
     async fillLoginForm(credentials) {
         logger_1.logger.info('LoginProcessor', '正在填写登录表单...');
-        // 查找用户名输入框
         const usernameSelectors = [
             'input[type="email"]',
             'input[name="email"]',
@@ -78,13 +78,11 @@ class LoginProcessor {
         if (!usernameInput) {
             throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, '未找到用户名/邮箱输入框');
         }
-        // 清空并输入用户名
         await usernameInput.click();
         await usernameInput.type('', { delay: 0 });
         await this.page.evaluate((el) => el.value = '', usernameInput);
         await usernameInput.type(credentials.username, { delay: 50 });
         logger_1.logger.info('LoginProcessor', '用户名已填写');
-        // 查找密码输入框
         const passwordSelectors = [
             'input[type="password"]',
             'input[name="password"]',
@@ -96,17 +94,14 @@ class LoginProcessor {
         if (!passwordInput) {
             throw new types_1.RenewalError(types_1.ErrorType.PARSE_ERROR, '未找到密码输入框');
         }
-        // 清空并输入密码
         await passwordInput.click();
         await passwordInput.type('', { delay: 0 });
         await this.page.evaluate((el) => el.value = '', passwordInput);
         await passwordInput.type(credentials.password, { delay: 50 });
         logger_1.logger.info('LoginProcessor', '密码已填写');
-        // 点击 "Remember me" 复选框
         try {
             const rememberCheckbox = await this.page.$('input[name="remember"]');
             if (rememberCheckbox) {
-                // 检查是否已选中,如果未选中则点击
                 const isChecked = await this.page.evaluate((el) => el.checked, rememberCheckbox);
                 if (!isChecked) {
                     await rememberCheckbox.click();
@@ -118,12 +113,8 @@ class LoginProcessor {
             logger_1.logger.warn('LoginProcessor', '未找到 "Remember me" 复选框,跳过');
         }
     }
-    /**
-     * 提交登录表单
-     */
     async submitLogin() {
         logger_1.logger.info('LoginProcessor', '正在提交登录表单...');
-        // 查找登录按钮
         const loginButtonSelectors = [
             'button[type="submit"]',
             'button:has-text("登录")',
@@ -134,7 +125,6 @@ class LoginProcessor {
         ];
         let loginButton = await this.findElement(loginButtonSelectors);
         if (!loginButton) {
-            // 如果没找到按钮,尝试按回车提交
             logger_1.logger.info('LoginProcessor', '未找到登录按钮,尝试按回车键提交');
             await this.page.keyboard.press('Enter');
         }
@@ -143,15 +133,10 @@ class LoginProcessor {
         }
         logger_1.logger.info('LoginProcessor', '登录表单已提交');
     }
-    /**
-     * 等待登录结果
-     */
     async waitForLoginResult() {
         logger_1.logger.info('LoginProcessor', '等待登录结果...');
         try {
-            // 等待页面导航或元素变化
             await delay(3000);
-            // 检查是否登录成功 (检查是否有常见的登录后元素)
             const successIndicators = [
                 '.dashboard',
                 '.user-info',
@@ -164,7 +149,6 @@ class LoginProcessor {
                     return element !== null;
                 });
             }, successIndicators);
-            // 也可以检查 URL 是否变化
             const currentUrl = this.page.url();
             const urlChanged = !currentUrl.includes('login') && !currentUrl.includes('signin');
             return success || urlChanged;
@@ -174,9 +158,6 @@ class LoginProcessor {
             return false;
         }
     }
-    /**
-     * 查找元素 (尝试多个选择器)
-     */
     async findElement(selectors) {
         for (const selector of selectors) {
             try {
@@ -186,7 +167,6 @@ class LoginProcessor {
                 }
             }
             catch (error) {
-                // 继续尝试下一个选择器
             }
         }
         return null;

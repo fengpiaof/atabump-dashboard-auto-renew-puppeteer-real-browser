@@ -195,7 +195,14 @@ export class RenewalExecutor {
           captchaCompleted = await this.page.evaluate(() => {
             // 检查 Turnstile 的成功标记
             const successToken = document.querySelector('input[name="cf-turnstile-response"]');
-            return successToken ? (successToken as HTMLInputElement).value.length > 0 : false;
+            if (!successToken) return false;
+
+            const value = (successToken as HTMLInputElement).value;
+
+            // 成功的 token 通常非常长(>500字符)
+            // 失败的 token 通常以 "0." 开头,长度较短
+            // 检查 token 是否存在且长度大于 500
+            return Boolean(value && value.length > 500);
           });
 
           if (captchaCompleted) {
