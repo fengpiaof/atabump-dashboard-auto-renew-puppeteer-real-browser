@@ -42,8 +42,8 @@ async function testWebGL() {
       '--enable-webgpu-developer-features',
       '--enable-unsafe-webgpu',
       '--disable-gpu-vsync',
-      // 移除 '--disable-software-rasterizer' 以允许软件回退
-      '--enable-unsafe-swiftshader',
+      // 不使用 SwiftShader（会导致 WebGL CONTEXT_LOST）
+      // 移除 '--enable-unsafe-swiftshader'
     ],
   });
 
