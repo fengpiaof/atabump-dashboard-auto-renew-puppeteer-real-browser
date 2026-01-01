@@ -5,9 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BrowserController = void 0;
 exports.smoothMouseMove = smoothMouseMove;
-const puppeteer_1 = __importDefault(require("puppeteer"));
+const puppeteer_extra_1 = __importDefault(require("puppeteer-extra"));
+const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
+puppeteer_extra_1.default.use((0, puppeteer_extra_plugin_stealth_1.default)());
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const random = (min, max) => Math.random() * (max - min) + min;
 async function smoothMouseMove(page, startX, startY, endX, endY, steps) {
@@ -111,7 +113,7 @@ class BrowserController {
                 launchOptions.userDataDir = this.config.userDataDir;
                 logger_1.logger.info('BrowserController', `使用用户数据目录: ${this.config.userDataDir}`);
             }
-            this.browser = await puppeteer_1.default.launch(launchOptions);
+            this.browser = await puppeteer_extra_1.default.launch(launchOptions);
             const dohUrl = this.config.dohUrl || this.DEFAULT_DOH_URL;
             logger_1.logger.info('BrowserController', `浏览器启动成功 (DoH: ${dohUrl})`);
         }

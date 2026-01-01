@@ -1,16 +1,16 @@
 /**
  * 浏览器控制器
  */
-import puppeteer from 'puppeteer';
-// import puppeteer from 'puppeteer-extra';
-// import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+// import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page, LaunchOptions } from 'puppeteer';
 import { BrowserConfig } from '../types';
 import { logger } from '../utils/logger';
 import { RenewalError, ErrorType } from '../types';
 
 // 使用 stealth 插件隐藏自动化特征
-// puppeteer.use(StealthPlugin());
+puppeteer.use(StealthPlugin());
 
 /**
  * 等待指定毫秒数
