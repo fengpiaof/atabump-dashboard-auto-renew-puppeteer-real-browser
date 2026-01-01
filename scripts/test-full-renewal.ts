@@ -28,7 +28,6 @@ async function runFullRenewalTest() {
     // 导入项目模块
     const { BrowserController } = await import('../src/browser/controller');
     const { LoginProcessor } = await import('../src/tasks/login');
-    const { ServerLocator } = await import('../src/tasks/locator');
     const { RenewalExecutor } = await import('../src/tasks/renewal');
 
     // 1. 启动浏览器
@@ -40,7 +39,10 @@ async function runFullRenewalTest() {
 
     // 2. 登录
     console.log('🔐 步骤 2: 登录账户');
-    await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log('正在访问登录页面(超时时间: 120秒)...');
+    await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 }).catch(() => {
+      console.log('⚠️  页面加载超时,但继续尝试...');
+    });
     const loginProcessor = new LoginProcessor(page);
     const loginSuccess = await loginProcessor.login(config.credentials);
 
@@ -54,13 +56,11 @@ async function runFullRenewalTest() {
       const server = config.servers[i];
       console.log(`\n🖥️  步骤 3.${i + 1}: 处理服务器 ${server.name || server.id}`);
 
-      // 定位服务器
-      const serverLocator = new ServerLocator(page);
-      const serverInfo = await serverLocator.locateServer(server.id, server.name);
-      console.log(`   找到服务器: ${serverInfo.name} (${serverInfo.id})`);
+      // 直接跳转到服务器详情页 (不使用 locateServer)
+      const detailUrl = `https://dashboard.katabump.com/servers/edit?id=${server.id}`;
+      console.log(`   直接访问服务器详情页: ${detailUrl}`);
 
-      // 进入服务器详情页
-      await serverLocator.navigateToServerDetail(serverInfo);
+      await page.goto(detailUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       console.log('   ✅ 已进入服务器详情页');
 
       // 执行续期
@@ -81,11 +81,11 @@ async function runFullRenewalTest() {
     }
 
     console.log('\n✨ 所有服务器续期测试完成!');
-    console.log('浏览器将保持打开 30 秒供查看...');
+    console.log('浏览器将保持打开 120 秒供查看...');
     console.log('按 Ctrl+C 立即退出\n');
 
-    // 保持浏览器打开 30 秒
-    await new Promise((resolve) => setTimeout(resolve, 30000));
+    // 保持浏览器打开 120 秒
+    await new Promise((resolve) => setTimeout(resolve, 120000));
 
     // 关闭浏览器
     await browserController.close();

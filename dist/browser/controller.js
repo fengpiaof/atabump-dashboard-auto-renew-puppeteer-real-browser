@@ -40,9 +40,12 @@ class BrowserController {
     async launch() {
         try {
             logger_1.logger.info('BrowserController', '正在启动浏览器...');
-            const launchOptions = {
+            const launchOptions = { defaultViewport: {
+                    width: 1920,
+                    height: 1080,
+                },
                 headless: this.config.headless ?? true,
-                args: [
+                args: ['--window-size=1920,1080',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
