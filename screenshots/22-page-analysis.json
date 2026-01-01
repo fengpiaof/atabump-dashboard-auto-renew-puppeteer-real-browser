@@ -1,0 +1,293 @@
+{
+  "url": "https://dashboard.katabump.com/servers/edit?id=189646",
+  "title": "Your server | KataBump",
+  "allButtons": [
+    {
+      "text": "Latency with Discord",
+      "type": "button",
+      "className": "accordion-button",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "DDoS Protection",
+      "type": "button",
+      "className": "accordion-button collapsed",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Support",
+      "type": "button",
+      "className": "accordion-button collapsed",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Security",
+      "type": "button",
+      "className": "accordion-button collapsed",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Easy renewal",
+      "type": "button",
+      "className": "accordion-button collapsed",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "General",
+      "type": null,
+      "className": "nav-link active",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Modify server",
+      "type": null,
+      "className": "nav-link",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Change password",
+      "type": null,
+      "className": "nav-link",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Change type",
+      "type": null,
+      "className": "nav-link",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "SFTP",
+      "type": null,
+      "className": "nav-link",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "🚀 Access server",
+      "type": null,
+      "className": "nav-link",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Delete server",
+      "type": "button",
+      "className": "btn btn-outline-danger",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Renew",
+      "type": "button",
+      "className": "btn btn-outline-primary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Save",
+      "type": "submit",
+      "className": "btn btn-primary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Change password",
+      "type": "submit",
+      "className": "btn btn-primary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Reset password",
+      "type": "button",
+      "className": "btn btn-outline-primary",
+      "tagName": "BUTTON",
+      "id": "reset-passwd",
+      "name": null
+    },
+    {
+      "text": "Change type",
+      "type": "submit",
+      "className": "btn btn-primary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Go to server",
+      "type": "button",
+      "className": "btn btn-primary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "",
+      "type": "button",
+      "className": "btn-close",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    },
+    {
+      "text": "Close",
+      "type": "button",
+      "className": "btn btn-secondary",
+      "tagName": "BUTTON",
+      "id": "",
+      "name": null
+    }
+  ],
+  "allLinks": [
+    {
+      "href": "https://dashboard.katabump.com/dashboard",
+      "text": "KataBump",
+      "className": "logo d-flex align-items-center"
+    },
+    {
+      "href": "#",
+      "text": "shixuan ma",
+      "className": "nav-link nav-profile d-flex align-items-center pe-0"
+    },
+    {
+      "href": "https://dashboard.katabump.com/profil",
+      "text": "My profil",
+      "className": "dropdown-item d-flex align-items-center"
+    },
+    {
+      "href": "https://dashboard.katabump.com/logs",
+      "text": "My logs",
+      "className": "dropdown-item d-flex align-items-center"
+    },
+    {
+      "href": "https://dashboard.katabump.com/profil/invoices",
+      "text": "My invoices",
+      "className": "dropdown-item d-flex align-items-center"
+    },
+    {
+      "href": "https://dashboard.katabump.com/auth/logout",
+      "text": "Logout",
+      "className": "dropdown-item d-flex align-items-center"
+    },
+    {
+      "href": "/dashboard",
+      "text": "Dashboard",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/servers/create",
+      "text": "Order",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/referral",
+      "text": "Referral",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/shop/credits",
+      "text": "Buy credits",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/shop/ads",
+      "text": "Buy ad",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/staff",
+      "text": "Our team",
+      "className": "nav-link collapsed"
+    },
+    {
+      "href": "https://dashboard.katabump.com/dashboard",
+      "text": "Home",
+      "className": ""
+    },
+    {
+      "href": "https://trustpilot.com/review/katabump.com",
+      "text": "our Trustpilot page",
+      "className": ""
+    },
+    {
+      "href": "http://control.katabump.com/server/43c77124",
+      "text": "Go to server",
+      "className": ""
+    }
+  ],
+  "allForms": [
+    {
+      "action": "https://dashboard.katabump.com/servers/edit?id=189646",
+      "method": "get",
+      "className": ""
+    },
+    {
+      "action": "https://dashboard.katabump.com/servers/edit?id=189646",
+      "method": "get",
+      "className": ""
+    },
+    {
+      "action": "https://dashboard.katabump.com/servers/edit?id=189646",
+      "method": "get",
+      "className": ""
+    },
+    {
+      "action": "https://dashboard.katabump.com/api-client/renew?id=189646",
+      "method": "post",
+      "className": ""
+    },
+    {
+      "action": "https://dashboard.katabump.com/api-client/delete-server?id=189646",
+      "method": "post",
+      "className": ""
+    }
+  ],
+  "renewalElements": [
+    {
+      "type": "button",
+      "text": "Easy renewal",
+      "id": "",
+      "name": null,
+      "className": "accordion-button collapsed"
+    },
+    {
+      "type": "button",
+      "text": "Renew",
+      "id": "",
+      "name": null,
+      "className": "btn btn-outline-primary"
+    },
+    {
+      "type": "button",
+      "text": "Renew",
+      "id": "",
+      "name": null,
+      "className": "btn btn-primary"
+    }
+  ]
+}

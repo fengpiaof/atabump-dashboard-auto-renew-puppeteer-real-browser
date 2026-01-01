@@ -1,0 +1,36 @@
+{
+  "name": "katabump-dashboard-auto-renew",
+  "version": "1.0.0",
+  "description": "服务器自动续期系统",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:ui": "vitest --ui",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "start:config": "node dist/index.js --config config.json",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "automation",
+    "renewal",
+    "puppeteer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.27.0",
+  "dependencies": {
+    "puppeteer": "^24.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/puppeteer": "^7.0.4",
+    "@vitest/ui": "^4.0.16",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

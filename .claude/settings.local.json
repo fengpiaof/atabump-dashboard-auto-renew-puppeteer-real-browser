@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm init)",
+      "Bash(pnpm add puppeteer)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm test)",
+      "Bash(pnpm remove:*)",
+      "Bash(if exist jest.config.js del jest.config.js)",
+      "Bash(pnpm test -- --run)",
+      "Bash(if not exist screenshots mkdir screenshots)",
+      "Bash(npx ts-node:*)"
+    ]
+  }
+}

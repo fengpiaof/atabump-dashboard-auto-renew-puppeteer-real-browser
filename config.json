@@ -1,0 +1,31 @@
+{
+  "targetUrl": "https://dashboard.katabump.com/dashboard",
+  "credentials": {
+    "username": "masx200@qq.com",
+    "password": "K96C15420899b1e2"
+  },
+  "servers": [
+    {
+      "id": "189646",
+      "name": "ubuntu-3x-ui-warp"
+    }
+  ],
+  "browser": {
+    "headless": false,
+    "executablePath": "D:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "timeout": 30000,
+    "waitUntil": "networkidle0",
+    "windowWidth": 1920,
+    "windowHeight": 1080
+  },
+  "retry": {
+    "maxRetries": 3,
+    "retryInterval": 5000,
+    "retryOnTimeout": true
+  },
+  "notifications": {
+    "enableEmail": false,
+    "enableWebhook": false,
+    "enableStdout": true
+  }
+}
