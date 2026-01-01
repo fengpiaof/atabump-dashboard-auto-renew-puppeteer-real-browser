@@ -4,12 +4,52 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BrowserController = void 0;
+exports.smoothMouseMove = smoothMouseMove;
 const puppeteer_extra_1 = __importDefault(require("puppeteer-extra"));
 const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
 puppeteer_extra_1.default.use((0, puppeteer_extra_plugin_stealth_1.default)());
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const random = (min, max) => Math.random() * (max - min) + min;
+async function smoothMouseMove(page, startX, startY, endX, endY, steps) {
+    const numSteps = steps ?? Math.floor(random(20, 50));
+    const controlPoints = [];
+    const numControlPoints = Math.random() > 0.5 ? 1 : 2;
+    for (let i = 0; i < numControlPoints; i++) {
+        const t = (i + 1) / (numControlPoints + 1);
+        const cpX = startX + (endX - startX) * t + random(-100, 100);
+        const cpY = startY + (endY - startY) * t + random(-100, 100);
+        controlPoints.push({ x: cpX, y: cpY });
+    }
+    for (let i = 0; i <= numSteps; i++) {
+        const t = i / numSteps;
+        let x, y;
+        if (controlPoints.length === 1) {
+            const cp = controlPoints[0];
+            x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * cp.x + t * t * endX;
+            y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * cp.y + t * t * endY;
+        }
+        else {
+            const cp1 = controlPoints[0];
+            const cp2 = controlPoints[1];
+            x =
+                (1 - t) * (1 - t) * (1 - t) * startX +
+                    3 * (1 - t) * (1 - t) * t * cp1.x +
+                    3 * (1 - t) * t * t * cp2.x +
+                    t * t * t * endX;
+            y =
+                (1 - t) * (1 - t) * (1 - t) * startY +
+                    3 * (1 - t) * (1 - t) * t * cp1.y +
+                    3 * (1 - t) * t * t * cp2.y +
+                    t * t * t * endY;
+        }
+        const jitterX = random(-1, 1);
+        const jitterY = random(-1, 1);
+        await page.mouse.move(x + jitterX, y + jitterY);
+        await delay(random(5, 15));
+    }
+}
 class BrowserController {
     constructor(config) {
         this.browser = null;
@@ -37,48 +77,32 @@ class BrowserController {
                 headless: false,
                 args: [
                     '--window-size=1920,1080',
+                    '--start-maximized',
+                    '--window-position=0,0',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
-                    '--disable-web-security',
-                    '--disable-features=IsolateOrigins,site-per-process',
                     '--disable-blink-features=AutomationControlled',
-                    '--disable-extensions-except=/dev/null',
-                    '--disable-extensions',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--disable-background-networking',
-                    '--disable-breakpad',
-                    '--disable-component-update',
-                    '--disable-default-apps',
-                    '--disable-domain-reliability',
-                    '--disable-sync',
-                    '--disable-features=site-per-process',
-                    '--disable-hang-monitor',
-                    '--disable-ipc-flooding-protection',
-                    '--disable-popup-blocking',
-                    '--disable-prompt-on-repost',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-infobars',
-                    '--window-position=0,0',
-                    '--hide-scrollbars',
-                    '--mute-audio',
-                    '--no-first-run',
-                    '--no-default-browser-check',
-                    '--disable-features=Translate',
-                    '--disable-features=media-router',
-                    '--disable-features=CalculateNativeWinOcclusion',
-                    '--disable-features=InterestFeedContentSuggestions',
+                    '--enable-gpu',
                     '--enable-webgl',
                     '--enable-webgl2-compute-context',
                     '--enable-gpu-rasterization',
                     '--enable-zero-copy',
+                    '--enable-vulkan',
+                    '--enable-features=Vulkan,WebGPU',
                     '--use-gl=desktop',
                     '--use-angle=gl',
                     '--ignore-gpu-blocklist',
-                    '--enable-features=Vulkan',
-                    '--enable-unsafe-webgpu',
+                    '--disable-dev-shm-usage',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-infobars',
+                    '--no-first-run',
+                    '--no-default-browser-check',
+                    '--disable-features=Translate',
+                    '--disable-features=media-router',
                     ...this.getDoHArgs(),
                 ],
             };
@@ -219,20 +243,6 @@ class BrowserController {
                 catch (e) {
                     return null;
                 }
-            };
-            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-            HTMLCanvasElement.prototype.toDataURL = function (type) {
-                const context = this.getContext('2d');
-                if (context) {
-                    const imageData = context.getImageData(0, 0, this.width, this.height);
-                    for (let i = 0; i < imageData.data.length; i += 4) {
-                        if (Math.random() < 0.001) {
-                            imageData.data[i + 3] = imageData.data[i + 3] ^ 1;
-                        }
-                    }
-                    context.putImageData(imageData, 0, 0);
-                }
-                return originalToDataURL.apply(this, [type]);
             };
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [
@@ -439,10 +449,28 @@ class BrowserController {
                 logger_1.logger.error('BrowserController', `检测到页面错误: ${cloudflareInfo.errors.join(', ')}`);
             }
             await page.waitForFunction(() => {
-                return (document.querySelector('#turnstile-container') === null &&
-                    !document.querySelector('[data-sitekey]') &&
-                    !window.location.href.includes('challenge-platform'));
-            }, { timeout: 300000 });
+                const turnstileInput = document.querySelector('[name="cf-turnstile-response"]');
+                if (turnstileInput && turnstileInput.value && turnstileInput.value.length > 500) {
+                    return true;
+                }
+                const errorElements = document.querySelectorAll('[class*="error"], [role="alert"]');
+                for (const el of Array.from(errorElements)) {
+                    const text = el.textContent || '';
+                    if (text.includes('Error') || text.includes('错误') || text.includes('failed')) {
+                        return false;
+                    }
+                }
+                const container = document.querySelector('#turnstile-container');
+                const sitekey = document.querySelector('[data-sitekey]');
+                const hasChallengeUrl = window.location.href.includes('challenge-platform');
+                if (!container && !sitekey && !hasChallengeUrl) {
+                    return true;
+                }
+                return false;
+            }, {
+                timeout: 60000,
+                polling: 200,
+            });
             logger_1.logger.info('BrowserController', 'Cloudflare 验证完成');
         }
         catch (error) {

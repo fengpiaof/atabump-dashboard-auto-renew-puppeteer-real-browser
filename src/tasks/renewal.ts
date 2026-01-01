@@ -5,6 +5,7 @@
 import { Page } from 'puppeteer';
 import { logger } from '../utils/logger';
 import { RenewalError, ErrorType, RenewalResult } from '../types';
+import { smoothMouseMove } from '../browser/controller';
 
 /**
  * 等待指定毫秒数
@@ -297,11 +298,16 @@ export class RenewalExecutor {
 
       logger.info('RenewalExecutor', `计算点击坐标: (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
 
+      // 使用 Bézier 曲线平滑移动鼠标到目标位置
+      // 获取当前鼠标位置（默认页面中心）
+      const currentX = 960;
+      const currentY = 540;
+
+      logger.info('RenewalExecutor', '使用 Bézier 曲线平滑移动鼠标...');
+      await smoothMouseMove(this.page, currentX, currentY, clickX, clickY);
+
       // 使用 Puppeteer 的鼠标点击 API
       // 这种方式可以穿透 Shadow DOM (closed) 并触发真实的事件
-      // 先移动鼠标到目标坐标,再进行点击,更模拟真实用户行为
-      // 使用 steps 参数实现平滑移动,避免瞬移
-      await this.page.mouse.move(clickX, clickY, { steps: 10 });
       await this.page.mouse.click(clickX, clickY);
 
       logger.info('RenewalExecutor', '✅ 已使用坐标点击验证码区域');
@@ -315,14 +321,15 @@ export class RenewalExecutor {
   /**
    * 执行随机鼠标移动,模拟真实用户行为
    * 在点击验证码之前进行随机方向的平滑移动
+   * 使用 Bézier 曲线实现更自然的鼠标轨迹
    */
   private async performRandomMouseMovement(): Promise<void> {
     try {
-      logger.info('RenewalExecutor', '执行随机鼠标移动...');
+      logger.info('RenewalExecutor', '执行随机鼠标移动 (使用 Bézier 曲线)...');
 
       // 获取当前鼠标位置(假设在页面中心)
-      const currentX = 960;
-      const currentY = 540;
+      let currentX = 960;
+      let currentY = 540;
 
       // 进行 3-5 次随机移动
       const moves = Math.floor(Math.random() * 3) + 3;
@@ -332,11 +339,12 @@ export class RenewalExecutor {
         const targetX = Math.floor(Math.random() * 400) + 760; // 760-1160
         const targetY = Math.floor(Math.random() * 300) + 390; // 390-690
 
-        // 计算移动步数(距离越远步数越多,模拟更平滑的移动)
-        const distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
-        const steps = Math.max(10, Math.floor(distance / 20));
+        // 使用 Bézier 曲线平滑移动
+        await smoothMouseMove(this.page, currentX, currentY, targetX, targetY);
 
-        await this.page.mouse.move(targetX, targetY, { steps });
+        // 更新当前位置
+        currentX = targetX;
+        currentY = targetY;
 
         // 每次移动后短暂停顿,更真实
         await delay(Math.floor(Math.random() * 200) + 100);

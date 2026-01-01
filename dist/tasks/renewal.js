@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RenewalExecutor = void 0;
 const logger_1 = require("../utils/logger");
 const types_1 = require("../types");
+const controller_1 = require("../browser/controller");
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class RenewalExecutor {
     constructor(page) {
@@ -194,7 +195,10 @@ class RenewalExecutor {
             const clickX = rect.x + 200;
             const clickY = rect.y + (rect.height / 2);
             logger_1.logger.info('RenewalExecutor', `计算点击坐标: (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
-            await this.page.mouse.move(clickX, clickY, { steps: 10 });
+            const currentX = 960;
+            const currentY = 540;
+            logger_1.logger.info('RenewalExecutor', '使用 Bézier 曲线平滑移动鼠标...');
+            await (0, controller_1.smoothMouseMove)(this.page, currentX, currentY, clickX, clickY);
             await this.page.mouse.click(clickX, clickY);
             logger_1.logger.info('RenewalExecutor', '✅ 已使用坐标点击验证码区域');
             return true;
@@ -206,16 +210,16 @@ class RenewalExecutor {
     }
     async performRandomMouseMovement() {
         try {
-            logger_1.logger.info('RenewalExecutor', '执行随机鼠标移动...');
-            const currentX = 960;
-            const currentY = 540;
+            logger_1.logger.info('RenewalExecutor', '执行随机鼠标移动 (使用 Bézier 曲线)...');
+            let currentX = 960;
+            let currentY = 540;
             const moves = Math.floor(Math.random() * 3) + 3;
             for (let i = 0; i < moves; i++) {
                 const targetX = Math.floor(Math.random() * 400) + 760;
                 const targetY = Math.floor(Math.random() * 300) + 390;
-                const distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
-                const steps = Math.max(10, Math.floor(distance / 20));
-                await this.page.mouse.move(targetX, targetY, { steps });
+                await (0, controller_1.smoothMouseMove)(this.page, currentX, currentY, targetX, targetY);
+                currentX = targetX;
+                currentY = targetY;
                 await delay(Math.floor(Math.random() * 200) + 100);
             }
             logger_1.logger.info('RenewalExecutor', `✅ 已完成 ${moves} 次随机鼠标移动`);

@@ -1,5 +1,6 @@
 import { Page } from 'puppeteer';
 import { BrowserConfig } from '../types';
+export declare function smoothMouseMove(page: Page, startX: number, startY: number, endX: number, endY: number, steps?: number): Promise<void>;
 export declare class BrowserController {
     private browser;
     private currentPage;

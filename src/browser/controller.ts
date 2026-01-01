@@ -17,6 +17,80 @@ puppeteer.use(StealthPlugin());
  */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * 生成随机数（在指定范围内）
+ */
+const random = (min: number, max: number) => Math.random() * (max - min) + min;
+
+/**
+ * 使用 Bézier 曲线模拟真实的鼠标移动
+ * 导出此函数供其他模块（如 RenewalExecutor）使用
+ * @param page Puppeteer Page 实例
+ * @param startX 起始 X 坐标
+ * @param startY 起始 Y 坐标
+ * @param endX 结束 X 坐标
+ * @param endY 结束 Y 坐标
+ * @param steps 移动步数（默认 20-50 之间随机）
+ */
+export async function smoothMouseMove(
+  page: Page,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  steps?: number
+): Promise<void> {
+  // 如果未指定步数，随机生成 20-50 之间的值
+  const numSteps = steps ?? Math.floor(random(20, 50));
+
+  // 生成 1-2 个控制点（二次或三次 Bézier 曲线）
+  const controlPoints = [];
+  const numControlPoints = Math.random() > 0.5 ? 1 : 2; // 随机选择二次或三次曲线
+
+  for (let i = 0; i < numControlPoints; i++) {
+    // 控制点在起点和终点之间，但带有随机偏移
+    const t = (i + 1) / (numControlPoints + 1);
+    const cpX = startX + (endX - startX) * t + random(-100, 100);
+    const cpY = startY + (endY - startY) * t + random(-100, 100);
+    controlPoints.push({ x: cpX, y: cpY });
+  }
+
+  // 沿着 Bézier 曲线移动鼠标
+  for (let i = 0; i <= numSteps; i++) {
+    const t = i / numSteps;
+
+    let x: number, y: number;
+
+    if (controlPoints.length === 1) {
+      // 二次 Bézier 曲线
+      const cp = controlPoints[0];
+      x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * cp.x + t * t * endX;
+      y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * cp.y + t * t * endY;
+    } else {
+      // 三次 Bézier 曲线
+      const cp1 = controlPoints[0];
+      const cp2 = controlPoints[1];
+      x =
+        (1 - t) * (1 - t) * (1 - t) * startX +
+        3 * (1 - t) * (1 - t) * t * cp1.x +
+        3 * (1 - t) * t * t * cp2.x +
+        t * t * t * endX;
+      y =
+        (1 - t) * (1 - t) * (1 - t) * startY +
+        3 * (1 - t) * (1 - t) * t * cp1.y +
+        3 * (1 - t) * t * t * cp2.y +
+        t * t * t * endY;
+    }
+
+    // 添加微小的随机抖动（模拟手部震颤）
+    const jitterX = random(-1, 1);
+    const jitterY = random(-1, 1);
+
+    await page.mouse.move(x + jitterX, y + jitterY);
+    await delay(random(5, 15)); // 每步之间随机延迟 5-15ms
+  }
+}
+
 export class BrowserController {
   private browser: Browser | null = null;
   private currentPage: Page | null = null;
@@ -56,62 +130,50 @@ export class BrowserController {
         },
         headless:  false,//this.config.headless ?? true,
         args: [
+          // 窗口和视口设置
           '--window-size=1920,1080',
+          '--start-maximized',
+          '--window-position=0,0',
+
+          // 沙箱和安全设置 (必需)
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-web-security',
-          '--disable-features=IsolateOrigins,site-per-process',
-          // 反检测参数
-          '--disable-blink-features=AutomationControlled', // 禁用自动化控制特征
-          '--disable-extensions-except=/dev/null',
-          '--disable-extensions',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-background-networking',
-          '--disable-breakpad',
-          '--disable-component-update',
-          '--disable-default-apps',
-          '--disable-domain-reliability',
-          '--disable-sync',
-          '--disable-features=site-per-process',
-          '--disable-hang-monitor',
-          '--disable-ipc-flooding-protection',
-          '--disable-popup-blocking',
-          '--disable-prompt-on-repost',
-          '--disable-features=VizDisplayCompositor',
-          // 移除 --enable-unsafe-swiftshader (不使用软件渲染)
-          // 启用 GPU 支持 (禁用 --disable-gpu, --disable-software-rasterizer)
-          // '--disable-gpu',  // 移除: Cloudflare 需要 GPU 来进行 WebGPU 检测
-          // '--disable-software-rasterizer',  // 移除: 需要软件光栅化作为后备
-          // '--disable-accelerated-2d-canvas',  // 移除: 需要 Canvas 加速
-          // '--disable-accelerated-jpeg-decoding',  // 移除
-          // '--disable-accelerated-mjpeg-decode',  // 移除
-          '--disable-infobars',
-          '--window-position=0,0',
-          // 额外的反检测参数
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-first-run',
-          '--no-default-browser-check',
-          '--disable-features=Translate',
-          '--disable-features=media-router', // 禁用媒体路由器
-          '--disable-features=CalculateNativeWinOcclusion', // 禁用窗口遮挡计算
-          '--disable-features=InterestFeedContentSuggestions', // 禁用内容建议
-          // 强制启用 WebGL 和 WebGPU 支持
+
+          // 反检测 - 核心参数
+          '--disable-blink-features=AutomationControlled', // 最重要：禁用自动化控制特征
+
+          // GPU 和硬件加速 - 关键：Cloudflare Turnstile 需要真实的 GPU 支持
+          '--enable-gpu',
           '--enable-webgl',
           '--enable-webgl2-compute-context',
           '--enable-gpu-rasterization',
           '--enable-zero-copy',
-          // 强制使用桌面级 OpenGL 驱动
-          '--use-gl=desktop',
-          '--use-angle=gl',
+          '--enable-vulkan',
+          '--enable-features=Vulkan,WebGPU', // 同时启用 Vulkan 和 WebGPU
+          '--use-gl=desktop', // 使用桌面 OpenGL
+          '--use-angle=gl', // 使用 OpenGL 作为 ANGLE 后端
           '--ignore-gpu-blocklist',
-          // 启用 WebGPU 支持 (Windows 上使用 Vulkan 或 DX12)
-          '--enable-features=Vulkan',
-          '--enable-unsafe-webgpu',
-          // 配置 DNS over HTTPS (DoH) - 使用正确的 fieldtrial 参数
+
+          // 性能优化参数
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=VizDisplayCompositor',
+
+          // 移除可能干扰 GPU 的参数
+          // 不使用 --disable-web-security (可能干扰 Turnstile)
+          // 不使用 --disable-features=IsolateOrigins,site-per-process
+
+          // 反检测辅助参数
+          '--disable-infobars',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-features=Translate',
+          '--disable-features=media-router',
+
+          // DNS over HTTPS (DoH) 配置
           ...this.getDoHArgs(),
         ],
       };
@@ -318,22 +380,10 @@ export class BrowserController {
         }
       };
 
-      const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-      HTMLCanvasElement.prototype.toDataURL = function (type) {
-        // 添加微小的随机噪声
-        const context = this.getContext('2d');
-        if (context) {
-          const imageData = context.getImageData(0, 0, this.width, this.height);
-          for (let i = 0; i < imageData.data.length; i += 4) {
-            // 随机修改一个像素的透明度
-            if (Math.random() < 0.001) {
-              imageData.data[i + 3] = imageData.data[i + 3] ^ 1;
-            }
-          }
-          context.putImageData(imageData, 0, 0);
-        }
-        return originalToDataURL.apply(this, [type]);
-      };
+      // Canvas 噪声注入已禁用
+      // 原因：Cloudflare Turnstile 可以检测到"一致性不一致"的数学模式
+      // 如果噪声模式看起来过于完美或数学化，会触发反爬虫检测
+      // 保持原始 Canvas 行为更安全
 
       // 8. 不再伪造 WebGPU 支持
       // Cloudflare Turnstile 会检测真实的 WebGPU 功能
@@ -629,16 +679,43 @@ export class BrowserController {
         logger.error('BrowserController', `检测到页面错误: ${cloudflareInfo.errors.join(', ')}`);
       }
 
-      // 等待验证完成 (最多等待 5 分钟)
+      // 等待 Turnstile 验证完成 - 改进版：监听 Turnstile 回调
+      // Turnstile 成功后会填充 input[name="cf-turnstile-response"]，且值长度 > 500
       await page.waitForFunction(
         () => {
-          return (
-            document.querySelector('#turnstile-container') === null &&
-            !document.querySelector('[data-sitekey]') &&
-            !window.location.href.includes('challenge-platform')
-          );
+          // 检查 Turnstile response input 是否已填充
+          const turnstileInput = document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement;
+          if (turnstileInput && turnstileInput.value && turnstileInput.value.length > 500) {
+            // 成功的 Turnstile token 长度通常 > 500 字符
+            return true;
+          }
+
+          // 检查是否有可见的错误消息
+          const errorElements = document.querySelectorAll('[class*="error"], [role="alert"]');
+          for (const el of Array.from(errorElements)) {
+            const text = el.textContent || '';
+            if (text.includes('Error') || text.includes('错误') || text.includes('failed')) {
+              // 发现错误，不应该继续等待
+              return false;
+            }
+          }
+
+          // 检查容器是否消失（备选条件）
+          const container = document.querySelector('#turnstile-container');
+          const sitekey = document.querySelector('[data-sitekey]');
+          const hasChallengeUrl = window.location.href.includes('challenge-platform');
+
+          // 如果都没有了，说明验证已完成
+          if (!container && !sitekey && !hasChallengeUrl) {
+            return true;
+          }
+
+          return false;
         },
-        { timeout: 300000 }
+        {
+          timeout: 60000, // 最多等待 60 秒（Turnstile 通常在 20-30 秒内完成）
+          polling: 200,   // 每 200ms 检查一次
+        }
       );
 
       logger.info('BrowserController', 'Cloudflare 验证完成');
