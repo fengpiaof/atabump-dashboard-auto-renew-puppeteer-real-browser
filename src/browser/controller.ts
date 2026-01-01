@@ -56,7 +56,6 @@ export class BrowserController {
         },
         headless:  false,//this.config.headless ?? true,
         args: [
-          '--disable-software-rasterizer',
           '--window-size=1920,1080',
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -82,7 +81,7 @@ export class BrowserController {
           '--disable-popup-blocking',
           '--disable-prompt-on-repost',
           '--disable-features=VizDisplayCompositor',
-          "--enable-unsafe-swiftshader",
+          // 移除 --enable-unsafe-swiftshader (不使用软件渲染)
           // 启用 GPU 支持 (禁用 --disable-gpu, --disable-software-rasterizer)
           // '--disable-gpu',  // 移除: Cloudflare 需要 GPU 来进行 WebGPU 检测
           // '--disable-software-rasterizer',  // 移除: 需要软件光栅化作为后备
@@ -109,6 +108,9 @@ export class BrowserController {
           '--use-gl=desktop',
           '--use-angle=gl',
           '--ignore-gpu-blocklist',
+          // 启用 WebGPU 支持 (Windows 上使用 Vulkan 或 DX12)
+          '--enable-features=Vulkan',
+          '--enable-unsafe-webgpu',
           // 配置 DNS over HTTPS (DoH) - 使用正确的 fieldtrial 参数
           ...this.getDoHArgs(),
         ],
@@ -333,23 +335,9 @@ export class BrowserController {
         return originalToDataURL.apply(this, [type]);
       };
 
-      // 8. 伪造 WebGPU 支持 (即使实际不支持,也要返回假对象避免崩溃)
-      if (!(navigator as any).gpu) {
-        (navigator as any).gpu = {
-          requestAdapter: async () => ({
-            requestAdapter: async () => null,
-            requestDevice: async () => ({
-              features: [],
-              limits: {},
-              destroy: () => {},
-              queue: {
-                submit: () => {},
-                onSubmittedWorkDone: async () => {},
-              },
-            }),
-          }),
-        };
-      }
+      // 8. 不再伪造 WebGPU 支持
+      // Cloudflare Turnstile 会检测真实的 WebGPU 功能
+      // 如果没有真实的 GPU 支持,保持 undefined 比伪造假对象更好
 
       // 9. 覆盖 plugins 和 mimeTypes
       Object.defineProperty(navigator, 'plugins', {

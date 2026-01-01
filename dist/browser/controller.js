@@ -34,7 +34,7 @@ class BrowserController {
                     width: 1920,
                     height: 1080,
                 },
-                headless: this.config.headless ?? true,
+                headless: false,
                 args: [
                     '--window-size=1920,1080',
                     '--no-sandbox',
@@ -77,6 +77,8 @@ class BrowserController {
                     '--use-gl=desktop',
                     '--use-angle=gl',
                     '--ignore-gpu-blocklist',
+                    '--enable-features=Vulkan',
+                    '--enable-unsafe-webgpu',
                     ...this.getDoHArgs(),
                 ],
             };
@@ -232,22 +234,6 @@ class BrowserController {
                 }
                 return originalToDataURL.apply(this, [type]);
             };
-            if (!navigator.gpu) {
-                navigator.gpu = {
-                    requestAdapter: async () => ({
-                        requestAdapter: async () => null,
-                        requestDevice: async () => ({
-                            features: [],
-                            limits: {},
-                            destroy: () => { },
-                            queue: {
-                                submit: () => { },
-                                onSubmittedWorkDone: async () => { },
-                            },
-                        }),
-                    }),
-                };
-            }
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [
                     {
