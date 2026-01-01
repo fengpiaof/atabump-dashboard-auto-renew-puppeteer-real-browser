@@ -27,7 +27,8 @@ export declare class RenewalExecutor {
     private handleRenewalConfirmation;
     /**
      * 点击验证码区域来触发 Cloudflare Turnstile 验证
-     * 通过定位 "Captcha" label 并在其右侧约 200px 处点击
+     * 通过定位 "Captcha" label 并在其右侧约 200px 处使用坐标点击
+     * 使用 Puppeteer 的 page.mouse.click() 可以穿透 Shadow DOM (closed)
      */
     private clickCaptchaArea;
     /**

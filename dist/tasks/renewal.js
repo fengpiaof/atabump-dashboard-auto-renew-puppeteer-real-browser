@@ -218,61 +218,38 @@ class RenewalExecutor {
     }
     /**
      * 点击验证码区域来触发 Cloudflare Turnstile 验证
-     * 通过定位 "Captcha" label 并在其右侧约 200px 处点击
+     * 通过定位 "Captcha" label 并在其右侧约 200px 处使用坐标点击
+     * 使用 Puppeteer 的 page.mouse.click() 可以穿透 Shadow DOM (closed)
      */
     async clickCaptchaArea() {
         try {
-            logger_1.logger.info('RenewalExecutor', '查找 Captcha label...');
-            // 查找 Captcha label 并在其右侧点击
-            const clicked = await this.page.evaluate(() => {
-                // 查找包含 "Captcha" 文本的 label
+            logger_1.logger.info('RenewalExecutor', '查找 Captcha label 并计算点击坐标...');
+            // 查找 Captcha label 并获取其位置
+            const rect = await this.page.evaluate(() => {
                 const labels = Array.from(document.querySelectorAll('label'));
                 const captchaLabel = labels.find(label => label.textContent?.trim().toLowerCase() === 'captcha');
                 if (!captchaLabel) {
-                    return false;
+                    return null;
                 }
-                // 获取 label 的位置和尺寸
-                const rect = captchaLabel.getBoundingClientRect();
-                const labelCenterX = rect.left + rect.width / 2;
-                const labelCenterY = rect.top + rect.height / 2;
-                // 在 label 右侧约 200px 处点击 (这是 iframe 所在的位置)
-                const clickX = labelCenterX + 200;
-                const clickY = labelCenterY;
-                // 创建并触发鼠标点击事件
-                const element = document.elementFromPoint(clickX, clickY);
-                if (element) {
-                    const mousedownEvent = new MouseEvent('mousedown', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: clickX,
-                        clientY: clickY,
-                        button: 0
-                    });
-                    const mouseupEvent = new MouseEvent('mouseup', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: clickX,
-                        clientY: clickY,
-                        button: 0
-                    });
-                    const clickEvent = new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: clickX,
-                        clientY: clickY,
-                        button: 0
-                    });
-                    element.dispatchEvent(mousedownEvent);
-                    element.dispatchEvent(mouseupEvent);
-                    element.dispatchEvent(clickEvent);
-                    return true;
-                }
-                return false;
+                // 获取元素在视口中的位置
+                const { x, y, width, height } = captchaLabel.getBoundingClientRect();
+                return { x, y, width, height };
             });
-            if (clicked) {
-                logger_1.logger.info('RenewalExecutor', '已点击验证码区域');
+            if (!rect) {
+                logger_1.logger.warn('RenewalExecutor', '未找到 Captcha label');
+                return false;
             }
-            return clicked;
+            // 计算点击坐标
+            // X 轴偏移 200px (这是 iframe 所在的位置)
+            // Y 轴取 label 的中心
+            const clickX = rect.x + 200;
+            const clickY = rect.y + (rect.height / 2);
+            logger_1.logger.info('RenewalExecutor', `计算点击坐标: (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
+            // 使用 Puppeteer 的鼠标点击 API
+            // 这种方式可以穿透 Shadow DOM (closed) 并触发真实的事件
+            await this.page.mouse.click(clickX, clickY);
+            logger_1.logger.info('RenewalExecutor', '✅ 已使用坐标点击验证码区域');
+            return true;
         }
         catch (error) {
             logger_1.logger.warn('RenewalExecutor', '点击验证码区域失败', error);
