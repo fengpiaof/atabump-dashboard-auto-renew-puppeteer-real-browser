@@ -4,6 +4,7 @@
   "description": "服务器自动续期系统",
   "main": "dist/index.js",
   "scripts": {
+    "test-full-renewal": "npx -y ts-node scripts/test-full-renewal.ts",
     "build": "tsc",
     "test": "vitest",
     "test:watch": "vitest --watch",
