@@ -93,6 +93,8 @@ class BrowserController {
                     '--use-gl=desktop',
                     '--use-angle=gl',
                     '--ignore-gpu-blocklist',
+                    "--enable-webgpu-developer-features",
+                    "--enable-unsafe-webgpu",
                     '--disable-dev-shm-usage',
                     '--disable-background-timer-throttling',
                     '--disable-backgrounding-occluded-windows',

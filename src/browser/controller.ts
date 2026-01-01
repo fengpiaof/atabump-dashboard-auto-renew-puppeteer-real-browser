@@ -154,6 +154,8 @@ export class BrowserController {
           '--use-gl=desktop', // 使用桌面 OpenGL
           '--use-angle=gl', // 使用 OpenGL 作为 ANGLE 后端
           '--ignore-gpu-blocklist',
+          "--enable-webgpu-developer-features",
+          "--enable-unsafe-webgpu",
 
           // 性能优化参数
           '--disable-dev-shm-usage',
