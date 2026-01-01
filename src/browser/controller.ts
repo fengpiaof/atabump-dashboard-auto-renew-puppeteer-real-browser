@@ -81,11 +81,12 @@ export class BrowserController {
           '--disable-popup-blocking',
           '--disable-prompt-on-repost',
           '--disable-features=VizDisplayCompositor',
-          '--disable-gpu',
-          '--disable-accelerated-2d-canvas',
-          '--disable-accelerated-jpeg-decoding',
-          '--disable-accelerated-mjpeg-decode',
-          '--disable-software-rasterizer',
+          // 启用 GPU 支持 (禁用 --disable-gpu, --disable-software-rasterizer)
+          // '--disable-gpu',  // 移除: Cloudflare 需要 GPU 来进行 WebGPU 检测
+          // '--disable-software-rasterizer',  // 移除: 需要软件光栅化作为后备
+          // '--disable-accelerated-2d-canvas',  // 移除: 需要 Canvas 加速
+          // '--disable-accelerated-jpeg-decoding',  // 移除
+          // '--disable-accelerated-mjpeg-decode',  // 移除
           '--disable-infobars',
           '--window-position=0,0',
           // 配置 DNS over HTTPS (DoH) - 使用正确的 fieldtrial 参数
@@ -212,7 +213,22 @@ export class BrowserController {
         return getParameter.call(this, parameter);
       };
 
-      // 7. 添加 Canvas 指纹噪声
+      // 7. 增强 Canvas/WebGL 上下文创建
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      (HTMLCanvasElement.prototype.getContext as any) = function (this: HTMLCanvasElement, contextType: any, attributes?: any) {
+        // 为 2d canvas 自动添加 willReadFrequently: true
+        if (contextType === '2d') {
+          attributes = attributes || {};
+          attributes.willReadFrequently = true;
+        }
+        // 为 WebGL 添加 preserveDrawingBuffer
+        if (contextType === 'webgl' || contextType === 'webgl2') {
+          attributes = attributes || {};
+          attributes.preserveDrawingBuffer = true;
+        }
+        return originalGetContext.call(this, contextType, attributes);
+      };
+
       const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
       HTMLCanvasElement.prototype.toDataURL = function (type) {
         // 添加微小的随机噪声
@@ -230,7 +246,25 @@ export class BrowserController {
         return originalToDataURL.apply(this, [type]);
       };
 
-      // 8. 覆盖 plugins 和 mimeTypes
+      // 8. 伪造 WebGPU 支持 (即使实际不支持,也要返回假对象避免崩溃)
+      if (!(navigator as any).gpu) {
+        (navigator as any).gpu = {
+          requestAdapter: async () => ({
+            requestAdapter: async () => null,
+            requestDevice: async () => ({
+              features: [],
+              limits: {},
+              destroy: () => {},
+              queue: {
+                submit: () => {},
+                onSubmittedWorkDone: async () => {},
+              },
+            }),
+          }),
+        };
+      }
+
+      // 9. 覆盖 plugins 和 mimeTypes
       Object.defineProperty(navigator, 'plugins', {
         get: () => [
           {
@@ -258,7 +292,7 @@ export class BrowserController {
         ],
       });
 
-      // 9. 覆盖 Connection rtt 和 downlink
+      // 10. 覆盖 Connection rtt 和 downlink
       Object.defineProperty(navigator, 'connection', {
         get: () => ({
           effectiveType: '4g',
@@ -268,20 +302,20 @@ export class BrowserController {
         }),
       });
 
-      // 10. 覆盖 deviceMemory
+      // 11. 覆盖 deviceMemory
       Object.defineProperty(navigator, 'deviceMemory', {
         get: () => 8,
       });
 
-      // 11. 覆盖 hardwareConcurrency
+      // 12. 覆盖 hardwareConcurrency
       Object.defineProperty(navigator, 'hardwareConcurrency', {
         get: () => 8,
       });
 
-      // 12. 移除 automation 相关属性
+      // 13. 移除 automation 相关属性
       delete (navigator as any).__proto__.webdriver;
 
-      // 13. 覆盖 Permission API
+      // 14. 覆盖 Permission API
       const originalPermissionQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters: any) => (
         parameters.name === 'notifications'
@@ -289,18 +323,18 @@ export class BrowserController {
           : originalPermissionQuery(parameters)
       );
 
-      // 14. 覆盖 Screen API
+      // 15. 覆盖 Screen API
       Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
       Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
       Object.defineProperty(screen, 'width', { get: () => 1920 });
       Object.defineProperty(screen, 'height', { get: () => 1080 });
 
-      // 15. 覆盖 Date.getTimezoneOffset
+      // 16. 覆盖 Date.getTimezoneOffset
       Date.prototype.getTimezoneOffset = function () {
         return -480; // UTC+8 (Asia/Shanghai)
       };
 
-      // 16. 覆盖 Intl.DateTimeFormat
+      // 17. 覆盖 Intl.DateTimeFormat
       const originalDateTimeFormat = Intl.DateTimeFormat;
       (Intl as any).DateTimeFormat = function (...args: any[]) {
         const instance = new (originalDateTimeFormat as any)(...args);
@@ -311,6 +345,36 @@ export class BrowserController {
           return options;
         };
         return instance;
+      };
+
+      // 18. 防止 getBoundingClientRect 在 null 元素上崩溃
+      const originalGetBBox = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function () {
+        // 如果元素不在文档中，返回一个默认的边界框
+        if (!this.isConnected) {
+          return {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            toJSON: () => ({}),
+          };
+        }
+        return originalGetBBox.call(this);
+      };
+
+      // 19. 防止 querySelector 在 shadow-root(closed) 中崩溃
+      const originalQuerySelector = Element.prototype.querySelector;
+      Element.prototype.querySelector = function (selectors: any) {
+        try {
+          return originalQuerySelector.call(this, selectors);
+        } catch (e) {
+          return null;
+        }
       };
     });
   }

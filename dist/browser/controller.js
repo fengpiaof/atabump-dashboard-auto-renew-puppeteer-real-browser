@@ -60,11 +60,6 @@ class BrowserController {
                     '--disable-popup-blocking',
                     '--disable-prompt-on-repost',
                     '--disable-features=VizDisplayCompositor',
-                    '--disable-gpu',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-accelerated-jpeg-decoding',
-                    '--disable-accelerated-mjpeg-decode',
-                    '--disable-software-rasterizer',
                     '--disable-infobars',
                     '--window-position=0,0',
                     ...this.getDoHArgs(),
@@ -140,6 +135,18 @@ class BrowserController {
                 }
                 return getParameter.call(this, parameter);
             };
+            const originalGetContext = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function (contextType, attributes) {
+                if (contextType === '2d') {
+                    attributes = attributes || {};
+                    attributes.willReadFrequently = true;
+                }
+                if (contextType === 'webgl' || contextType === 'webgl2') {
+                    attributes = attributes || {};
+                    attributes.preserveDrawingBuffer = true;
+                }
+                return originalGetContext.call(this, contextType, attributes);
+            };
             const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
             HTMLCanvasElement.prototype.toDataURL = function (type) {
                 const context = this.getContext('2d');
@@ -154,6 +161,22 @@ class BrowserController {
                 }
                 return originalToDataURL.apply(this, [type]);
             };
+            if (!navigator.gpu) {
+                navigator.gpu = {
+                    requestAdapter: async () => ({
+                        requestAdapter: async () => null,
+                        requestDevice: async () => ({
+                            features: [],
+                            limits: {},
+                            destroy: () => { },
+                            queue: {
+                                submit: () => { },
+                                onSubmittedWorkDone: async () => { },
+                            },
+                        }),
+                    }),
+                };
+            }
             Object.defineProperty(navigator, 'plugins', {
                 get: () => [
                     {
@@ -216,6 +239,32 @@ class BrowserController {
                     return options;
                 };
                 return instance;
+            };
+            const originalGetBBox = Element.prototype.getBoundingClientRect;
+            Element.prototype.getBoundingClientRect = function () {
+                if (!this.isConnected) {
+                    return {
+                        x: 0,
+                        y: 0,
+                        width: 0,
+                        height: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        left: 0,
+                        toJSON: () => ({}),
+                    };
+                }
+                return originalGetBBox.call(this);
+            };
+            const originalQuerySelector = Element.prototype.querySelector;
+            Element.prototype.querySelector = function (selectors) {
+                try {
+                    return originalQuerySelector.call(this, selectors);
+                }
+                catch (e) {
+                    return null;
+                }
             };
         });
     }
