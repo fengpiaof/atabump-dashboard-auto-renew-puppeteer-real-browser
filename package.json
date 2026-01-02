@@ -24,10 +24,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.27.0",
   "dependencies": {
+    "@types/yargs": "^17.0.35",
     "puppeteer": "^24.34.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "puppeteer-real-browser": "^1.4.4"
+    "puppeteer-real-browser": "^1.4.4",
+    "yargs": "^18.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

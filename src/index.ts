@@ -1,216 +1,128 @@
 /**
- * 服务器自动续期系统主程序
+ * 完整的端到端续期测试
+ * 使用实际的项目代码测试整个续期流程
  */
 
-import { BrowserController } from './browser/controller';
-import { LoginProcessor } from './tasks/login';
-import { ServerLocator } from './tasks/locator';
-import { RenewalExecutor } from './tasks/renewal';
-import { ConfigLoader } from './config/loader';
-import { RenewalConfig, RenewalResult, BatchRenewalResult } from './types';
-import { logger, LogLevel } from './utils/logger';
-import { RenewalError, ErrorType } from './types';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
-class RenewalTask {
-  private browserController: BrowserController | null = null;
-  private config: RenewalConfig;
+// 解析命令行参数
+const argv = yargs(hideBin(process.argv))
+  .option('config', {
+    alias: 'c',
+    type: 'string',
+    description: '配置文件路径',
+    default: 'config.json',
+  })
+  .help()
+  .alias('help', 'h')
+  .version()
+  .alias('version', 'v')
+  .parseSync();
 
-  constructor(config: RenewalConfig) {
-    this.config = config;
-  }
+// 加载配置
+const configPath = resolve(argv.config);
+const config = JSON.parse(readFileSync(configPath, 'utf-8'));
 
-  /**
-   * 执行单个服务器续期
-   */
-  async executeRenewal(serverId: string, serverName?: string): Promise<RenewalResult> {
-    try {
-      logger.info('RenewalTask', `========== 开始续期任务 ==========`);
+console.log('📋 加载配置:');
+console.log(`   目标URL: ${config.targetUrl}`);
+console.log(`   用户名: ${config.credentials.username}`);
+console.log(`   服务器数量: ${config.servers.length}`);
+config.servers.forEach((server: any, index: number) => {
+  console.log(`   服务器 ${index + 1}: ${server.name} (ID: ${server.id})`);
+});
+console.log(`   Chrome路径: ${config.browser.executablePath}`);
+console.log(`   DoH URL: https://doh.pub/dns-query`);
 
-      // 启动浏览器
-      if (!this.browserController) {
-        this.browserController = new BrowserController(this.config.browser);
-        await this.browserController.launch();
-      }
+// 动态导入项目模块
+async function runFullRenewalTest() {
+  try {
+    console.log('\n🚀 开始完整续期测试...\n');
 
-      const page = await this.browserController.newPage();
+    // 导入项目模块
+    const { BrowserController } = await import('../src/browser/controller');
+    const { LoginProcessor } = await import('../src/tasks/login');
+    const { RenewalExecutor } = await import('../src/tasks/renewal');
 
-      // 导航到目标页面
-      await this.browserController.navigate(this.config.targetUrl);
+    // 1. 启动浏览器
+    console.log('📦 步骤 1: 启动浏览器');
+    const browserController = new BrowserController(config.browser);
+    await browserController.launch();
+    const page = await browserController.newPage();
+    console.log('✅ 浏览器启动成功\n');
 
-      // 等待 Cloudflare 验证
-      await this.browserController.waitForCloudflareVerification();
+    // 2. 登录
+    console.log('🔐 步骤 2: 登录账户');
+    console.log('正在访问登录页面(超时时间: 120秒)...');
+    await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 }).catch(() => {
+      console.log('⚠️  页面加载超时,但继续尝试...');
+    });
+    const loginProcessor = new LoginProcessor(page);
+    const loginSuccess = await loginProcessor.login(config.credentials);
 
-      // 执行登录
-      const loginProcessor = new LoginProcessor(page);
-      const loginSuccess = await loginProcessor.login(this.config.credentials);
+    if (!loginSuccess) {
+      throw new Error('登录失败');
+    }
+    console.log('✅ 登录成功\n');
 
-      if (!loginSuccess) {
-        throw new RenewalError(ErrorType.VERIFY_ERROR, '登录失败');
-      }
+    // 3. 对每个服务器进行续期
+    for (let i = 0; i < config.servers.length; i++) {
+      const server = config.servers[i];
+      console.log(`\n🖥️  步骤 3.${i + 1}: 处理服务器 ${server.name || server.id}`);
 
-      // 定位服务器
-      const serverLocator = new ServerLocator(page);
-      const serverInfo = await serverLocator.locateServer(serverId, serverName);
+      // 直接跳转到服务器详情页 (不使用 locateServer)
+      const detailUrl = `https://dashboard.katabump.com/servers/edit?id=${server.id}`;
+      console.log(`   直接访问服务器详情页: ${detailUrl}`);
 
-      // 导航到服务器详情页面
-      await serverLocator.navigateToServerDetail(serverInfo);
+      await page.goto(detailUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      console.log('   ✅ 已进入服务器详情页');
 
       // 执行续期
       const renewalExecutor = new RenewalExecutor(page);
-      const result = await renewalExecutor.executeRenewal(serverId);
+      const result = await renewalExecutor.executeRenewal(server.id);
 
-      logger.info('RenewalTask', `========== 续期任务结束 ==========`);
-      return result;
-    } catch (error) {
-      logger.error('RenewalTask', '续期任务执行失败', error);
-
-      return {
-        success: false,
-        serverId,
-        message: `续期任务执行失败: ${error instanceof Error ? error.message : String(error)}`,
-        error: {
-          code: error instanceof RenewalError ? error.type : ErrorType.BUSINESS_ERROR,
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-      };
-    }
-  }
-
-  /**
-   * 执行批量服务器续期
-   */
-  async executeBatchRenewal(serverIds: string[]): Promise<BatchRenewalResult> {
-    const startTime = Date.now();
-    const results: RenewalResult[] = [];
-
-    logger.info('RenewalTask', `========== 开始批量续期任务 ==========`);
-    logger.info('RenewalTask', `待处理服务器数量: ${serverIds.length}`);
-
-    for (const serverId of serverIds) {
-      const serverConfig = this.config.servers.find((s) => s.id === serverId);
-      const result = await this.executeRenewal(serverId, serverConfig?.name);
-      results.push(result);
-
-      // 如果失败,等待一段时间后继续
-      if (!result.success) {
-        await new Promise((resolve) => setTimeout(resolve, this.config.retry.retryInterval));
-      }
-    }
-
-    const executionTime = Date.now() - startTime;
-    const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.filter((r) => !r.success).length;
-
-    logger.info('RenewalTask', `========== 批量续期任务完成 ==========`);
-    logger.info('RenewalTask', `总数量: ${serverIds.length}, 成功: ${successCount}, 失败: ${failureCount}, 耗时: ${executionTime}ms`);
-
-    return {
-      totalCount: serverIds.length,
-      successCount,
-      failureCount,
-      results,
-      executionTime,
-    };
-  }
-
-  /**
-   * 关闭浏览器实例
-   */
-  async close(): Promise<void> {
-    if (this.browserController) {
-      await this.browserController.close();
-      this.browserController = null;
-    }
-  }
-}
-
-/**
- * 主函数 - 命令行入口
- */
-async function main() {
-  try {
-    // 解析命令行参数
-    const args = process.argv.slice(2);
-    const configIndex = args.indexOf('--config');
-    const serverIdIndex = args.indexOf('--server-id');
-    const serverNameIndex = args.indexOf('--server-name');
-    const batchIndex = args.indexOf('--batch');
-
-    let config: RenewalConfig;
-
-    if (configIndex !== -1 && args[configIndex + 1]) {
-      // 从配置文件加载
-      const configPath = args[configIndex + 1];
-      config = ConfigLoader.loadFromFile(configPath);
-    } else {
-      throw new Error('请使用 --config 参数指定配置文件');
-    }
-
-    // 设置日志级别
-    logger.setLogLevel(LogLevel.INFO);
-
-    // 创建续期任务实例
-    const task = new RenewalTask(config);
-
-    if (batchIndex !== -1) {
-      // 批量续期模式
-      const serverIds = config.servers.map((s) => s.id);
-      const batchResult = await task.executeBatchRenewal(serverIds);
-
-      // 输出批量结果摘要
-      console.log('\n========== 批量续期结果摘要 ==========');
-      console.log(`总计: ${batchResult.totalCount}`);
-      console.log(`成功: ${batchResult.successCount}`);
-      console.log(`失败: ${batchResult.failureCount}`);
-      console.log(`耗时: ${batchResult.executionTime}ms`);
-      console.log('=====================================\n');
-    } else if (serverIdIndex !== -1 && args[serverIdIndex + 1]) {
-      // 单服务器续期模式
-      const serverId = args[serverIdIndex + 1];
-      const serverName = serverNameIndex !== -1 ? args[serverNameIndex + 1] : undefined;
-
-      const result = await task.executeRenewal(serverId, serverName);
-
-      console.log('\n========== 续期结果 ==========');
-      console.log(`服务器ID: ${result.serverId}`);
-      console.log(`状态: ${result.success ? '成功' : '失败'}`);
-      console.log(`消息: ${result.message}`);
-      if (result.details) {
-        console.log(`详情:`, result.details);
-      }
-      console.log('=============================\n');
-    } else {
-      // 默认续期配置文件中的第一个服务器
-      const firstServer = config.servers[0];
-      if (firstServer) {
-        const result = await task.executeRenewal(firstServer.id, firstServer.name);
-
-        console.log('\n========== 续期结果 ==========');
-        console.log(`服务器ID: ${result.serverId}`);
-        console.log(`状态: ${result.success ? '成功' : '失败'}`);
-        console.log(`消息: ${result.message}`);
-        if (result.details) {
-          console.log(`详情:`, result.details);
+      if (result.success) {
+        if (result.message.includes('还未到续期时间')) {
+          console.log('   ⏳ 服务器还未到续期时间');
+          if (result.details?.info) {
+            console.log(`   信息: ${result.details.info}`);
+          }
+        } else {
+          console.log('   ✅ 续期成功');
+          if (result.details?.newExpiryDate) {
+            console.log(`   新到期时间: ${result.details.newExpiryDate}`);
+          }
         }
-        console.log('=============================\n');
+      } else {
+        console.log(`   ❌ 续期失败: ${result.message}`);
+        if (result.error) {
+          console.log(`   错误代码: ${result.error.code}`);
+        }
       }
     }
+
+    console.log('\n✨ 所有服务器续期测试完成!');
+    console.log('浏览器将保持打开 120 秒供查看...');
+    console.log('按 Ctrl+C 立即退出\n');
+
+    // 保持浏览器打开 120 秒
+    await new Promise((resolve) => setTimeout(resolve, 120000));
 
     // 关闭浏览器
-    await task.close();
+    await browserController.close();
+    console.log('✅ 浏览器已关闭');
 
-    process.exit(0);
   } catch (error) {
-    logger.error('Main', '程序执行失败', error);
-    console.error('程序执行失败:', error);
+    console.error('\n❌ 测试过程中发生错误:');
+    console.error(error);
     process.exit(1);
   }
 }
 
-// 如果直接运行此文件,执行主函数
-if (require.main === module) {
-  main();
-}
-
-export { RenewalTask, ConfigLoader, logger, LogLevel };
+// 运行测试
+runFullRenewalTest().catch((error) => {
+  console.error('未捕获的错误:', error);
+  process.exit(1);
+});
