@@ -1,23 +1,32 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "removeComments": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "moduleResolution": "node",
-    "pretty": true,
-    "downlevelIteration": true
+  "targetUrl": "https://dashboard.katabump.com/dashboard",
+  "credentials": {
+    "username": "a1186534325@gmail.com",
+    "password": "Qazxsw....123"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "servers": [
+    {
+      "id": "189646",
+      "name": "my-server-name"
+    }
+  ],
+  "browser": {
+    "headless": false,
+    "executablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "userDataDir": "./.chrome-data",
+    "dohUrl": "https://doh.pub/dns-query",
+    "timeout": 30000,
+    "windowWidth": 1920,
+    "windowHeight": 1080
+  },
+  "retry": {
+    "maxRetries": 3,
+    "retryInterval": 5000,
+    "retryOnTimeout": true
+  },
+  "notifications": {
+    "enableEmail": false,
+    "enableWebhook": false,
+    "enableStdout": true
+  }
 }
